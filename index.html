@@ -2445,7 +2445,7 @@ const idxInnerEl  = document.getElementById('idxInner');
 const IDX_ITEM_H = 19;
 let idxItems = [];
 let curMath = -1;
-let curMode = 'sea';
+let curMode = '';        // 空值，确保首次 updateMath 一定触发 buildIndex
 let idxShift = -1;
 
 function escHtml(s){
