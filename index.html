@@ -1,0 +1,3558 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Abyss — The Descent</title>
+<style>
+  html,body{margin:0;padding:0;background:#01030a;}
+  body{
+    height:4800vh;
+    overflow-x:hidden;
+    cursor:none;
+    scrollbar-width:none;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::-webkit-scrollbar{width:0;height:0;display:none;}
+  canvas{position:fixed;left:0;top:0;display:block;}
+  #mask{pointer-events:none;}
+
+  .hud{
+    position:fixed;z-index:20;pointer-events:none;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:#a9ecff;
+    text-shadow:0 0 18px rgba(2,10,24,.98),0 0 6px rgba(2,10,24,.9),0 1px 2px rgba(1,6,16,.9);
+    letter-spacing:.16em;text-transform:uppercase;
+    user-select:none;
+  }
+
+  /* 右上：深度读数 */
+  #depthbox{right:28px;top:26px;text-align:right;}
+  #depthnum{
+    font-size:34px;line-height:1;letter-spacing:.02em;
+    font-weight:300;
+  }
+  #depthnum small{font-size:12px;letter-spacing:.2em;margin-left:6px;opacity:.65;}
+  #bandname{
+    margin-top:9px;font-size:9.5px;opacity:.62;letter-spacing:.22em;
+  }
+  #pressure{margin-top:4px;font-size:9px;opacity:.34;letter-spacing:.18em;}
+
+  /* 左下：发现计数 */
+  #countbox{left:28px;bottom:26px;font-size:11px;}
+  #countbox em{
+    font-style:normal;font-size:22px;letter-spacing:.04em;
+    display:inline-block;vertical-align:-2px;margin-right:5px;
+  }
+  #countbox span{opacity:.42;font-size:10px;letter-spacing:.18em;}
+
+  /* 右侧深度标尺 */
+  #gauge{
+    position:fixed;right:24px;top:50%;transform:translateY(-50%);
+    width:20px;height:38vh;z-index:21;pointer-events:auto;
+  }
+  #gauge::before{
+    content:'';position:absolute;left:9px;top:0;width:1px;height:100%;
+    background:linear-gradient(to bottom,rgba(140,234,255,.05),rgba(140,234,255,.28),rgba(140,234,255,.05));
+  }
+  #gauge:hover #gaugeDot{
+    box-shadow:0 0 20px 6px rgba(140,240,255,.95);
+  }
+  #gaugeDot{
+    position:absolute;left:9px;width:5px;height:5px;margin-left:-2px;margin-top:-2.5px;
+    border-radius:50%;background:#b6f4ff;
+    box-shadow:0 0 14px 3px rgba(120,230,255,.85);
+    top:0;
+  }
+  #gaugeTicks{position:absolute;inset:0;}
+  #gaugeTicks i{
+    position:absolute;left:11px;width:5px;height:1px;
+    background:rgba(140,234,255,.35);
+  }
+
+  /* 中央标题 */
+  #title{
+    position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+    z-index:19;text-align:center;pointer-events:none;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:#c2f4ff;user-select:none;
+    text-shadow:0 0 34px rgba(2,10,24,.95),0 0 10px rgba(2,10,24,.9);
+  }
+  #title h1{
+    margin:0;font-size:clamp(24px,5.2vw,54px);font-weight:200;
+    letter-spacing:.42em;text-indent:.42em;
+  }
+  #title p{
+    margin:14px 0 0;font-size:10px;letter-spacing:.34em;opacity:.42;
+    text-transform:uppercase;
+  }
+
+  /* 左侧：知识点目录（向下排开） */
+  #idx{
+    position:fixed;left:26px;top:90px;z-index:21;pointer-events:auto;
+    width:204px;max-height:min(68vh,620px);overflow:hidden;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    user-select:none;
+  }
+  #idxInner{transition:transform .3s cubic-bezier(.2,.8,.3,1);}
+  .idxItem{
+    display:flex;align-items:center;gap:7px;height:19px;
+    padding-left:9px;margin-left:-9px;
+    font-size:10px;letter-spacing:.05em;white-space:nowrap;
+    color:#84c8de;opacity:.72;
+    border-left:2px solid transparent;
+    transition:color .3s,opacity .3s,border-color .3s,font-size .3s;
+    text-shadow:0 0 18px rgba(1,6,16,1),0 0 7px rgba(1,6,16,.95);
+  }
+  .idxItem:hover{
+    color:#eafcff;opacity:1;
+    border-left-color:rgba(140,234,255,.45);
+    text-shadow:0 0 14px rgba(2,10,24,.95),0 0 6px rgba(120,225,255,.85);
+  }
+  .idxItem b{font-weight:400;font-size:8.5px;letter-spacing:.08em;opacity:.6;}
+  .idxItem.on{
+    color:#e2faff;opacity:1;font-size:10.8px;
+    border-left-color:rgba(140,234,255,.9);
+    text-shadow:0 0 14px rgba(120,225,255,.75);
+  }
+  .idxItem.on b{opacity:1;color:#8ceaff;}
+
+  /* 中间：计算过程 */
+  #mathMain{
+    position:fixed;top:88px;left:calc(50% - 80px);transform:translateX(-50%);
+    z-index:20;pointer-events:none;
+    width:min(580px, calc(100vw - 720px));
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    user-select:none;
+  }
+
+  /* 右侧：3D 图解 */
+  #viz{
+    position:fixed;left:auto;right:52px;top:50%;transform:translateY(-50%);
+    width:min(400px, 29vw);height:min(400px, 29vw);
+    z-index:19;pointer-events:none;
+  }
+  #vizLabel{
+    position:fixed;right:52px;top:calc(50% + min(200px, 14.5vw) + 10px);
+    z-index:20;pointer-events:none;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:8.5px;letter-spacing:.28em;text-transform:uppercase;
+    color:#7ccde4;opacity:.55;text-align:right;
+    width:min(400px, 29vw);
+  }
+  @media (max-width:1250px){
+    #viz{width:250px;height:250px;right:30px;}
+    #vizLabel{width:250px;right:30px;top:calc(50% + 133px);}
+  }
+  @media (max-width:1040px){
+    #viz,#vizLabel{display:none;}
+    #mathMain{width:min(680px, calc(100vw - 460px));left:50%;}
+  }
+  #mathHead{
+    display:flex;align-items:baseline;gap:10px;
+    font-size:9px;letter-spacing:.2em;text-transform:uppercase;
+    margin-bottom:9px;color:#7fd4f0;
+  }
+  #mathTier{
+    padding:2px 7px;border:1px solid rgba(140,234,255,.35);border-radius:2px;
+    color:#a9ecff;letter-spacing:.16em;white-space:nowrap;
+  }
+  #mathTier .star{color:#ffd98a;letter-spacing:.05em;margin-left:5px;text-shadow:0 0 8px rgba(255,190,90,.6);}
+  #mathNo{opacity:.42;letter-spacing:.18em;margin-left:auto;}
+  #mathTitle{
+    font-size:18px;letter-spacing:.04em;line-height:1.5;
+    color:#eafcff;margin-bottom:14px;padding-left:12px;
+    border-left:2px solid rgba(140,234,255,.6);
+    text-shadow:0 0 22px rgba(2,10,24,.98),0 0 9px rgba(2,10,24,.9),0 0 3px rgba(1,6,16,.85);
+  }
+  #mathBody{
+    margin:0;font-size:16px;line-height:1.8;white-space:pre-wrap;
+    color:#dcf5ff;letter-spacing:.005em;
+    max-height:74vh;overflow:hidden;
+    text-shadow:0 0 26px rgba(1,6,16,1),0 0 11px rgba(1,6,16,.98),0 0 3px rgba(0,4,10,.95);
+  }
+  #mathBody .ln{display:block;opacity:0;animation:lineIn .38s cubic-bezier(.2,.8,.3,1) forwards;}
+  #mathBody .hl{color:#d9f7ff;}
+  #mathBody .res{color:#ffd98a;text-shadow:0 0 14px rgba(255,190,90,.45);}
+  @keyframes lineIn{
+    from{opacity:0;transform:translateY(5px);}
+    to{opacity:1;transform:none;}
+  }
+  @media (max-width: 900px){
+    #idx{display:none;}
+    #mathMain{width:92vw;top:80px;}
+    #mathBody{font-size:12.5px;line-height:1.7;max-height:58vh;}
+    #mathTitle{font-size:14px;}
+  }
+
+  /* 下潜提示 */
+  #hint{
+    position:fixed;left:50%;bottom:7vh;transform:translateX(-50%);
+    z-index:20;pointer-events:none;text-align:center;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:9.5px;letter-spacing:.34em;text-transform:uppercase;
+    color:#a9ecff;opacity:.75;
+    text-shadow:0 0 18px rgba(2,10,24,.98),0 0 6px rgba(2,10,24,.9);
+  }
+  #hint .arrow{
+    display:block;margin:10px auto 0;width:1px;height:34px;
+    background:linear-gradient(to bottom,rgba(140,234,255,.75),transparent);
+    animation:drift 2.4s ease-in-out infinite;
+  }
+  @keyframes drift{
+    0%,100%{opacity:.25;transform:translateY(-4px) scaleY(.75);}
+    50%{opacity:.9;transform:translateY(4px) scaleY(1);}
+  }
+
+  /* 自定义光标 */
+  #cursor{
+    position:fixed;left:0;top:0;z-index:30;pointer-events:none;
+    width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;
+    border:1px solid rgba(170,240,255,.55);
+    box-shadow:0 0 12px rgba(120,225,255,.35),inset 0 0 6px rgba(160,240,255,.2);
+    transform:translate3d(-100px,-100px,0);
+    transition:opacity .3s;
+  }
+  #cursor::after{
+    content:'';position:absolute;left:50%;top:50%;width:2px;height:2px;
+    margin:-1px 0 0 -1px;border-radius:50%;background:rgba(200,250,255,.95);
+    box-shadow:0 0 8px rgba(160,240,255,.9);
+  }
+</style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+<canvas id="mask"></canvas>
+<canvas id="viz"></canvas>
+<div id="vizLabel">fig. — rotating</div>
+
+<div id="title">
+  <h1>ABYSS</h1>
+  <p>The Descent</p>
+</div>
+
+<div class="hud" id="depthbox">
+  <div id="depthnum">0<small>M</small></div>
+  <div id="bandname">EPIPELAGIC · 透光层</div>
+  <div id="pressure">1.0 ATM</div>
+</div>
+
+<div id="gauge">
+  <div id="gaugeTicks"></div>
+  <div id="gaugeDot"></div>
+</div>
+
+<div class="hud" id="countbox">
+  <em id="countnum">0</em><span>/ <span id="counttotal">0</span> SPECIMENS</span>
+</div>
+
+<div id="idx"><div id="idxInner"></div></div>
+
+<div id="mathMain">
+  <div id="mathHead">
+    <span id="mathTier">初中<span class="star">★</span></span>
+    <span id="mathNo">01 / 58</span>
+  </div>
+  <div id="mathTitle">求根公式是推出来的</div>
+  <pre id="mathBody"></pre>
+</div>
+
+<div id="hint">
+  ↑ ascend&nbsp;&nbsp;·&nbsp;&nbsp;scroll&nbsp;&nbsp;·&nbsp;&nbsp;descend ↓
+  <span class="arrow"></span>
+</div>
+
+<div id="cursor"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ─────────────── 基础工具 ─────────────── */
+const TAU = Math.PI * 2;
+const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
+const lerp  = (a,b,t)=> a+(b-a)*t;
+const rnd   = (a,b)=> a+Math.random()*(b-a);
+const hsla  = (h,s,l,a)=> 'hsla('+(h|0)+','+(s|0)+'%,'+(l|0)+'%,'+a.toFixed(3)+')';
+const smoothstep = x => { x = clamp(x,0,1); return x*x*(3-2*x); };
+
+/* ─────────────── 画布 ─────────────── */
+const DPR  = Math.min(window.devicePixelRatio || 1, 2);
+const scene = document.getElementById('scene');
+const mask  = document.getElementById('mask');
+const sctx  = scene.getContext('2d', { alpha:false });
+const mctx  = mask.getContext('2d');
+
+let W = 0, H = 0;
+
+function resize(){
+  W = window.innerWidth;
+  H = window.innerHeight;
+  [[scene,sctx],[mask,mctx]].forEach(function(pair){
+    const c = pair[0], x = pair[1];
+    c.width  = Math.max(1, Math.round(W*DPR));
+    c.height = Math.max(1, Math.round(H*DPR));
+    c.style.width  = W+'px';
+    c.style.height = H+'px';
+    x.setTransform(DPR,0,0,DPR,0,0);
+  });
+  buildGaugeTicks();
+  resizeViz();
+}
+
+/* ─────────────── 世界参数 ─────────────── */
+const WORLD_H = 16000;
+const MAX_M   = 11000;
+
+const BANDS = [
+  { t:0.00, name:'EPIPELAGIC · 透光层',   hue:186 },
+  { t:0.13, name:'MESOPELAGIC · 弱光层',  hue:202 },
+  { t:0.34, name:'BATHYPELAGIC · 深层',   hue:248 },
+  { t:0.62, name:'ABYSSOPELAGIC · 深渊层',hue:296 },
+  { t:0.85, name:'HADAL · 超深渊',        hue:338 }
+];
+
+function hueAt(t){
+  for (let i=0;i<BANDS.length-1;i++){
+    const a = BANDS[i], b = BANDS[i+1];
+    if (t >= a.t && t <= b.t){
+      const k = (t - a.t) / ((b.t - a.t) || 1);
+      return lerp(a.hue, b.hue, k);
+    }
+  }
+  return t < BANDS[0].t ? BANDS[0].hue : BANDS[BANDS.length-1].hue;
+}
+function bandAt(t){
+  let b = BANDS[0];
+  for (let i=0;i<BANDS.length;i++) if (t >= BANDS[i].t) b = BANDS[i];
+  return b;
+}
+
+/* ─────────────── 水母 ─────────────── */
+const N_JELLY = 58;
+const jellies = [];
+
+for (let i=0;i<N_JELLY;i++){
+  const t  = Math.pow(Math.random(), 0.82);
+  const wy = t * WORLD_H;
+  const deep = t;
+  jellies.push({
+    wy: wy,
+    xf: Math.random(),
+    size: (16 + Math.pow(Math.random(), 2.3) * 165) * lerp(0.85, 1.5, deep),
+    hue: hueAt(deep) + rnd(-18, 18),
+    sat: lerp(66, 100, deep),
+    phase: Math.random() * TAU,
+    pulseSpd: rnd(0.35, 1.05),
+    tent: 5 + ((Math.random()*5)|0),
+    tentLen: rnd(0.9, 2.7),
+    z: rnd(0.62, 1.0),
+    wob: rnd(0, TAU),
+    wobSpd: rnd(0.06, 0.2),
+    wobAmt: rnd(4, 26),
+    glow: 0,
+    seen: 0,
+    discovered: false
+  });
+}
+
+/* ─────────────── 海雪 ─────────────── */
+const N_SNOW = 560;
+const snow = [];
+for (let i=0;i<N_SNOW;i++){
+  snow.push({
+    wy: Math.random() * WORLD_H,
+    xf: Math.random(),
+    z: rnd(0.25, 1.2),
+    r: rnd(0.4, 1.9),
+    a: rnd(0.12, 0.6),
+    ph: rnd(0, TAU),
+    spd: rnd(0.2, 1.0)
+  });
+}
+
+/* ─────────────── 输入 ─────────────── */
+let mouseX = window.innerWidth  * 0.5;
+let mouseY = window.innerHeight * 0.42;
+let lightX = mouseX, lightY = mouseY;
+
+const cursorEl = document.getElementById('cursor');
+
+window.addEventListener('mousemove', function(e){
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  cursorEl.style.transform = 'translate3d('+mouseX+'px,'+mouseY+'px,0)';
+}, { passive:true });
+
+window.addEventListener('touchmove', function(e){
+  const t = e.touches[0];
+  if (!t) return;
+  mouseX = t.clientX;
+  mouseY = t.clientY;
+  cursorEl.style.opacity = '0';
+  forcedDepth = null;
+}, { passive:true });
+
+// 一旦用户主动滚动，解除 ?d= 的深度锁定
+window.addEventListener('wheel', function(){ forcedDepth = null; }, { passive:true });
+
+/* ─────────────── 深度状态 ─────────────── */
+const SKY_VH = 12;      // 天空占 12 屏
+const SEA_VH = 35;      // 海洋占 35 屏
+
+let scrollTarget = 0;
+let depth = 0;
+let alt   = 0;
+let rawSmooth = 0;
+let tNow = 0;
+let discoveredCount = 0;
+let forcedDepth = null;   // ?d=0.75 锁定海洋深度
+let forcedAlt   = null;   // ?s=0.50 锁定天空高度
+
+function scrollRatio(){
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  if (max <= 0) return 0;
+  return clamp(window.scrollY / max, 0, 1);
+}
+
+/* ─────────────── 天空素材 ─────────────── */
+const stars = [];
+for (let i=0;i<240;i++){
+  stars.push({ xf: Math.random(), yf: Math.random(), r: rnd(0.4,1.7), ph: rnd(0,TAU), sp: rnd(0.3,1.4) });
+}
+const clouds = [];
+for (let i=0;i<22;i++){
+  clouds.push({ wy: Math.random(), xf: Math.random(), s: rnd(60,190), ph: rnd(0,TAU), drift: rnd(0.4,1.2) });
+}
+
+/* ─────────────── HUD ─────────────── */
+const depthNumEl = document.getElementById('depthnum');
+const bandNameEl = document.getElementById('bandname');
+const pressureEl = document.getElementById('pressure');
+const countNumEl = document.getElementById('countnum');
+const countTotEl = document.getElementById('counttotal');
+const gaugeDotEl = document.getElementById('gaugeDot');
+const gaugeTicksEl = document.getElementById('gaugeTicks');
+const hintEl     = document.getElementById('hint');
+const titleEl    = document.getElementById('title');
+
+countTotEl.textContent = N_JELLY;
+
+const SKY_BANDS = [
+  { t:0.00, name:'HORIZON · 海平面' },
+  { t:0.10, name:'TROPOSPHERE · 对流层' },
+  { t:0.35, name:'STRATOSPHERE · 平流层' },
+  { t:0.55, name:'MESOSPHERE · 中间层' },
+  { t:0.72, name:'THERMOSPHERE · 热层' },
+  { t:0.90, name:'EXOSPHERE · 外逸层' }
+];
+
+function skyBandAt(t){
+  let b = SKY_BANDS[0];
+  for (let i=0;i<SKY_BANDS.length;i++) if (t >= SKY_BANDS[i].t) b = SKY_BANDS[i];
+  return b;
+}
+function skyHue(t){ return lerp(196, 270, smoothstep(t)); }
+
+let hudKey = '';
+function updateHUD(mode, prog){
+  let valHtml, bandName, sub;
+
+  if (mode === 'sky'){
+    const km = prog * 100;
+    valHtml  = (km < 1) ? (Math.round(km*1000) + '<small>M</small>')
+                        : (km.toFixed(1) + '<small>KM</small>');
+    bandName = skyBandAt(prog).name;
+    sub      = Math.exp(-prog * 100000 / 8000).toFixed(3) + ' ATM';
+  } else {
+    const m  = Math.round(prog * MAX_M);
+    valHtml  = m.toLocaleString('en-US') + '<small>M</small>';
+    bandName = bandAt(prog).name;
+    sub      = (1 + m/10).toFixed(1) + ' ATM';
+  }
+
+  const key = mode + '|' + valHtml;
+  if (key !== hudKey){
+    hudKey = key;
+    depthNumEl.innerHTML = valHtml;
+  }
+  if (bandNameEl.textContent !== bandName) bandNameEl.textContent = bandName;
+  pressureEl.textContent = sub;
+
+  gaugeDotEl.style.top = (prog * 100) + '%';
+
+  hintEl.style.opacity  = String(clamp(1 - prog * 26, 0, 0.75));
+  titleEl.style.opacity = String(clamp(1 - prog * 22, 0, 1) * 0.30);
+
+  const hudFade = lerp(1, 0.45, smoothstep(prog));
+  document.getElementById('depthbox').style.opacity = String(hudFade);
+  document.getElementById('countbox').style.opacity = (mode === 'sky') ? '0' : String(hudFade);
+}
+
+function buildGaugeTicks(){
+  if (!gaugeTicksEl) return;
+  gaugeTicksEl.innerHTML = '';
+  for (let i=0;i<=20;i++){
+    const el = document.createElement('i');
+    el.style.top = (i * 5) + '%';
+    if (i % 5 === 0){ el.style.width = '9px'; el.style.background = 'rgba(140,234,255,.55)'; }
+    gaugeTicksEl.appendChild(el);
+  }
+}
+
+/* ─────────────── 绘制：水母 ─────────────── */
+function drawJelly(j, sx, sy, time, light){
+  const s   = j.size;
+  const puls = 1 + Math.sin(time * j.pulseSpd + j.phase) * 0.055;
+  const rx  = s * 0.55 * puls;
+  const ry  = s * 0.44 * puls;
+  const hue = j.hue;
+  const sat = j.sat;
+  const halo = 0.08 + light * 0.5 + j.glow * 0.55;
+
+  if (s > 22){
+    const cy = sy - ry * 0.25;
+    const rad = s * 2.0;
+    const g = sctx.createRadialGradient(sx, cy, rad*0.04, sx, cy, rad);
+    g.addColorStop(0,    hsla(hue, sat, 68, halo * 0.55));
+    g.addColorStop(0.42, hsla(hue, sat, 58, halo * 0.18));
+    g.addColorStop(1,    hsla(hue, sat, 50, 0));
+    sctx.fillStyle = g;
+    sctx.beginPath();
+    sctx.arc(sx, cy, rad, 0, TAU);
+    sctx.fill();
+  }
+
+  const tBaseY = sy + ry * 0.06;
+  sctx.lineCap = 'round';
+  for (let k=0;k<j.tent;k++){
+    const p0  = (k + 0.5) / j.tent;
+    const x0  = sx - rx * 0.84 + 2 * rx * 0.84 * p0;
+    const len = s * j.tentLen * (0.55 + 0.6 * Math.abs(Math.sin(k * 1.7 + j.phase)));
+    const seg = 10;
+    sctx.beginPath();
+    sctx.moveTo(x0, tBaseY);
+    for (let i=1;i<=seg;i++){
+      const p  = i / seg;
+      const sw = Math.sin(time * 1.15 + j.phase + p * 2.8 + k * 0.85) * s * 0.14 * p * (1 + j.glow * 0.8);
+      const push = (x0 - sx) * p * 0.32;
+      sctx.lineTo(x0 + sw + push, tBaseY + len * p);
+    }
+    sctx.strokeStyle = hsla(hue, sat, 76, (0.10 + light * 0.46 + j.glow * 0.3) * 0.9);
+    sctx.lineWidth   = Math.max(0.55, s * 0.010);
+    sctx.stroke();
+  }
+
+  sctx.beginPath();
+  sctx.moveTo(sx - rx, sy);
+  sctx.bezierCurveTo(sx - rx*0.97, sy - ry*1.58, sx + rx*0.97, sy - ry*1.58, sx + rx, sy);
+  const lobes = 4;
+  for (let i=1;i<=lobes;i++){
+    const p  = i / lobes;
+    const x1 = sx + rx - 2*rx*p;
+    const cx = sx + rx - 2*rx*(p - 0.5/lobes);
+    sctx.quadraticCurveTo(cx, sy + ry*0.30, x1, sy - Math.sin(p*Math.PI)*ry*0.06);
+  }
+  sctx.closePath();
+
+  const fill = sctx.createLinearGradient(sx, sy - ry*1.5, sx, sy + ry*0.35);
+  fill.addColorStop(0,    hsla(hue, sat, 80, 0.07 + light*0.30));
+  fill.addColorStop(0.52, hsla(hue, sat, 64, 0.15 + light*0.42));
+  fill.addColorStop(1,    hsla(hue, sat, 56, 0.03 + light*0.20));
+  sctx.fillStyle = fill;
+  sctx.fill();
+
+  sctx.strokeStyle = hsla(hue, sat, 86, 0.10 + light*0.55 + j.glow*0.25);
+  sctx.lineWidth   = Math.max(0.7, s*0.013);
+  sctx.stroke();
+
+  if (s > 34){
+    sctx.strokeStyle = hsla(hue, sat, 88, 0.05 + light*0.18);
+    sctx.lineWidth = Math.max(0.4, s*0.006);
+    for (let i=1;i<=4;i++){
+      const p = i/5;
+      const px = sx - rx + 2*rx*p;
+      sctx.beginPath();
+      sctx.moveTo(sx, sy - ry*1.32);
+      sctx.quadraticCurveTo(px*0.55 + sx*0.45, sy - ry*0.4, px, sy - ry*0.02);
+      sctx.stroke();
+    }
+  }
+}
+
+/* ─────────────── 数学阶梯：深度即难度（58 关） ─────────────── */
+const MATH_STAGES = [
+
+/* ══ 初中 ══ */
+{ from:0.0000, tier:'初中', star:1, title:'一元二次方程求根公式是怎么来的',
+  lines:[
+"a x² + b x + c = 0      (a ≠ 0)",
+"",
+"两边同除以 a：",
+"x² + (b/a)x + c/a = 0",
+"移项：",
+"x² + (b/a)x = -c/a",
+"两边加上 (b/2a)²，凑完全平方：",
+"x² + (b/a)x + b²/4a² = b²/4a² - c/a",
+"(x + b/2a)² = (b² - 4ac) / 4a²",
+"开方：",
+"x + b/2a = ±√(b²-4ac) / 2a",
+"x = (-b ± √(b²-4ac)) / 2a        ∎",
+"",
+"例：x² - 5x + 6 = 0",
+"Δ = 25 - 24 = 1",
+"x = (5 ± 1)/2  →  x₁=3, x₂=2",
+"验算：x₁+x₂ = 5 = -b/a   x₁x₂ = 6 = c/a ✓"
+] },
+
+{ from:0.0140, tier:'初中', star:1, title:'勾股定理：用一个正方形证 a²+b²=c²',
+  lines:[
+"取边长 a+b 的正方形，四角各放一个直角三角形",
+"（直角边 a、b，斜边 c）",
+"",
+"大正方形面积，两种算法：",
+"",
+"按外框算：",
+"(a+b)² = a² + 2ab + b²",
+"",
+"按拼块算：",
+"4·(ab/2) + c² = 2ab + c²",
+"",
+"两式相等：",
+"a² + 2ab + b² = 2ab + c²",
+"两边消去 2ab：",
+"a² + b² = c²        ∎",
+"",
+"例：3-4-5",
+"3² + 4² = 9 + 16 = 25 = 5²  ✓"
+] },
+
+{ from:0.0280, tier:'初中', star:2, title:'高斯那道 1+2+…+100 的一般解',
+  lines:[
+"求 S = 1 + 2 + 3 + … + n",
+"",
+"把它倒着再写一遍：",
+"S = n + (n-1) + … + 2 + 1",
+"",
+"两式逐项相加，每一对都等于 n+1：",
+"2S = (1+n) + (2+n-1) + … + (n+1)",
+"   = n · (n+1)",
+"",
+"S = n(n+1)/2        ∎",
+"",
+"推广到首项 a₁、公差 d：",
+"aₖ = a₁ + (k-1)d",
+"Sₙ = n(a₁ + aₙ)/2 = n[2a₁ + (n-1)d]/2",
+"",
+"例：1+2+…+100 = 100·101/2 = 5050"
+] },
+
+{ from:0.0420, tier:'初中', star:2, title:'圆的面积为什么是 πr²',
+  lines:[
+"把圆平均分成 n 个扇形，再交错拼起来。",
+"",
+"拼出来的图形越来越像平行四边形：",
+"底 = 半个圆周 = πr",
+"高 = 半径 = r",
+"",
+"所以面积 ≈ πr × r = πr²",
+"",
+"严格化：取内接正 n 边形的面积",
+"Aₙ = (1/2)·n·r²·sin(2π/n)",
+"",
+"用 sin t ≈ t - t³/6，t = 2π/n：",
+"Aₙ = (1/2)·n·r²·(2π/n) - 高阶项",
+"   = πr² - O(1/n²)",
+"",
+"令 n → ∞，高阶项消失：",
+"A = lim Aₙ = πr²        ∎",
+"",
+"这就是「以直代曲」：曲边用完整体极限处理"
+] },
+
+{ from:0.0560, tier:'初中', star:2, title:'消元法解二元一次方程组',
+  lines:[
+"解:",
+"  2x + 3y = 12   …(1)",
+"   x -  y = 1    …(2)",
+"",
+"(2) 两边乘 3（等式仍成立）：",
+"  3x - 3y = 3    …(3)",
+"",
+"(1) + (3)，y 被消掉：",
+"  5x = 15  →  x = 3",
+"",
+"代回 (2)：",
+"  3 - y = 1  →  y = 2",
+"",
+"验算：2(3) + 3(2) = 12 ✓     3 - 2 = 1 ✓",
+"",
+"原理：等式两边同乘一个数、两式相加，仍是等式。",
+"所以消元得到的解与原方程组同解        ∎"
+] },
+
+/* ══ 高中 · 一、函数与代数 ══ */
+{ from:0.0700, tier:'高中', star:2, title:'指数运算法则：a^m · a^n = a^(m+n)',
+  lines:[
+"a^m 就是 m 个 a 相乘。",
+"",
+"a^m · a^n = (a·a·…·a) × (a·a·…·a)",
+"              ← m 个 →      ← n 个 →",
+"",
+"拼起来一共 m+n 个 a：",
+"a^m · a^n = a^(m+n)        ∎",
+"",
+"由此推零次幂，令 m = 0：",
+"a^0 · a^n = a^n   →   a^0 = 1   (a ≠ 0)",
+"",
+"再令 m = -n：",
+"a^(-n) · a^n = a^0 = 1   →   a^(-n) = 1/a^n",
+"",
+"分数指数：设 a^(1/2) = x，则 x² = a，故 x = √a",
+"所以 a^(m/n) = ⁿ√(a^m)",
+"",
+"例：2³·2⁴ = 2⁷ = 128    (2³)⁴ = 2¹² = 4096"
+] },
+
+{ from:0.0863, tier:'高中', star:2, title:'对数换底公式：log_a b = ln b / ln a',
+  lines:[
+"设 y = log_a b",
+"",
+"按定义：",
+"a^y = b",
+"",
+"两边取自然对数：",
+"y · ln a = ln b",
+"",
+"除以 ln a（a ≠ 1，故 ln a ≠ 0）：",
+"y = ln b / ln a",
+"",
+"即",
+"log_a b = ln b / ln a = log_c b / log_c a        ∎",
+"",
+"例：log₂ 8 = ln8/ln2 = 2.0794/0.6931 = 3 ✓",
+"",
+"推论：log_a b · log_b a = 1",
+"因为 (ln b/ln a)(ln a/ln b) = 1"
+] },
+
+{ from:0.1027, tier:'高中', star:2, title:'二次函数顶点式：配方求最值',
+  lines:[
+"y = a x² + b x + c",
+"",
+"提取 a：",
+"y = a(x² + (b/a)x) + c",
+"",
+"括号内配成完全平方（加减 (b/2a)²）：",
+"y = a[(x + b/2a)² - b²/4a²] + c",
+"",
+"整理：",
+"y = a(x + b/2a)² + (4ac - b²)/4a",
+"",
+"所以顶点在：",
+"x = -b/2a,   y = (4ac - b²)/4a = -Δ/4a",
+"",
+"a > 0 开口向上，y ≥ -Δ/4a（最小值）",
+"a < 0 开口向下，y ≤ -Δ/4a（最大值）        ∎",
+"",
+"例：y = x² - 4x + 1 = (x-2)² - 3",
+"顶点 (2, -3)，最小值 -3"
+] },
+
+{ from:0.1190, tier:'高中', star:2, title:'一元二次不等式：符号表法',
+  lines:[
+"解 x² - 5x + 6 > 0",
+"",
+"因式分解：",
+"x² - 5x + 6 = (x-2)(x-3)",
+"根：x = 2, x = 3（两个不等实根）",
+"",
+"两个因子的符号，分三段看：",
+"",
+"      x < 2    2 < x < 3    x > 3",
+"x-2     −        +            +",
+"x-3     −        −            +",
+"乘积    +        −            +",
+"",
+"所以解集为：",
+"x < 2 或 x > 3，即 (-∞,2) ∪ (3,+∞)        ∎",
+"",
+"口诀（a > 0）：大于取两边，小于取中间",
+"于是 (x-2)(x-3) < 0 的解就是 2 < x < 3"
+] },
+
+{ from:0.1353, tier:'高中', star:3, title:'单调性判定：证明 f(x)=x+1/x 在 (1,+∞) 递增',
+  lines:[
+"按定义：任取 x₁ < x₂，要证 f(x₁) < f(x₂)，",
+"即 f(x₂) - f(x₁) > 0。",
+"",
+"f(x₂) - f(x₁) = (x₂ + 1/x₂) - (x₁ + 1/x₁)",
+"              = (x₂ - x₁) + (1/x₂ - 1/x₁)",
+"              = (x₂ - x₁) + (x₁ - x₂)/(x₁x₂)",
+"              = (x₂ - x₁)·[1 - 1/(x₁x₂)]",
+"",
+"因为 x₁ < x₂，所以 x₂ - x₁ > 0；",
+"因为 x₁, x₂ > 1，所以 x₁x₂ > 1，即 1/(x₁x₂) < 1,",
+"于是 [1 - 1/(x₁x₂)] > 0。",
+"",
+"两个正数相乘为正：",
+"f(x₂) - f(x₁) > 0",
+"即 f 在 (1,+∞) 上单调递增        ∎",
+"",
+"同法可证在 (0,1) 上递减 —— 这是对勾函数的谷底"
+] },
+
+/* ══ 高中 · 二、三角函数 ══ */
+{ from:0.1517, tier:'高中', star:2, title:'弧度制：弧长 l = rθ，面积 S = ½r²θ',
+  lines:[
+"弧度定义：弧长恰好等于半径时，这个圆心角记为 1 rad。",
+"",
+"整圈的弧长 = 2πr，除以 r 得 2π rad，",
+"所以 2π rad = 360°，π rad = 180°。",
+"",
+"【弧长】圆心角 θ 占整圈的比例是 θ/(2π)，",
+"对应弧长 = 2πr × θ/(2π) = rθ        ∎",
+"",
+"【扇形面积】占比同样是 θ/(2π)：",
+"S = πr² × θ/(2π) = ½r²θ        ∎",
+"",
+"另一种看法：把扇形细分成小条，近似底 l、高 r 的三角形，",
+"S ≈ ½·l·r = ½·(rθ)·r = ½r²θ，极限下精确",
+"",
+"例：r = 3，θ = π/3",
+"l = 3·(π/3) = π     S = ½·9·(π/3) = (3/2)π"
+] },
+
+{ from:0.1680, tier:'高中', star:3, title:'诱导公式：单位圆上一眼看出来',
+  lines:[
+"在单位圆上取角 θ 的终边，交圆于 P = (cosθ, sinθ)。",
+"",
+"角 π − θ 的终边与 θ 的终边关于 y 轴对称，",
+"把 P 沿 y 轴镜像得到 Q：",
+"Q = (−cosθ, sinθ)",
+"",
+"而 Q 正是角 π − θ 的终边与圆的交点，按定义：",
+"Q = (cos(π−θ), sin(π−θ))",
+"",
+"两式相等，逐分量比较：",
+"cos(π−θ) = −cosθ",
+"sin(π−θ) =  sinθ        ∎",
+"",
+"同样的镜像手法能推出一整套：",
+"sin(π+θ) = −sinθ      cos(π+θ) = −cosθ",
+"sin(−θ)  = −sinθ      cos(−θ)  =  cosθ",
+"sin(π/2−θ) = cosθ     cos(π/2−θ) = sinθ"
+] },
+
+{ from:0.1843, tier:'高中', star:3, title:'用向量点积推出 sin(A+B)',
+  lines:[
+"要推和角公式，先看余弦差。",
+"",
+"取单位向量 u = (cosA, sinA)，v = (cosB, sinB)",
+"",
+"点积的两种算法：",
+"坐标：u·v = cosA·cosB + sinA·sinB",
+"几何：u·v = |u||v|·cos(A-B) = cos(A-B)",
+"",
+"两者相等：",
+"cos(A-B) = cosA cosB + sinA sinB",
+"",
+"把 B 换成 -B（cos 为偶、sin 为奇）：",
+"cos(A+B) = cosA cosB - sinA sinB",
+"",
+"再由 sin θ = cos(90°-θ)：",
+"sin(A+B) = cos((90°-A) + (-B))",
+"        = sinA cosB + cosA sinB        ∎",
+"",
+"例：sin75° = (√6 + √2)/4 ≈ 0.9659"
+] },
+
+{ from:0.2007, tier:'高中', star:3, title:'y = A sin(ωx+φ) 的周期为什么是 2π/ω',
+  lines:[
+"sin 本身的周期是 2π，即 sin(t + 2π) = sin(t)。",
+"",
+"要找 y = A sin(ωx + φ) 的最小正周期 T，",
+"即使函数值不变：",
+"",
+"A sin(ω(x+T) + φ) = A sin(ωx + φ)",
+"",
+"这要求 ω(x+T)+φ 与 ωx+φ 相差 2π 的整数倍：",
+"ωT = 2πk",
+"",
+"取最小正解 k = 1：",
+"T = 2π/ω        ∎",
+"",
+"A 是振幅，ω 决定频率，φ 是初相",
+"频率 f = 1/T = ω/(2π)",
+"",
+"例：y = 3 sin(2x + π/4)",
+"A = 3，T = 2π/2 = π，f = 1/π，初相 π/4"
+] },
+
+{ from:0.2170, tier:'高中', star:3, title:'正弦定理：a/sinA = 2R 是怎么来的',
+  lines:[
+"在 △ABC 中作外接圆，圆心 O，半径 R",
+"",
+"延长 BO 交圆于 D，则 BD 是直径：BD = 2R",
+"",
+"因为 BD 是直径，所以圆周角 ∠BCD = 90°",
+"于是在 Rt△BCD 中：",
+"sin∠BDC = BC/BD = a/(2R)",
+"",
+"而 ∠BDC 与 ∠A 对的是同一段弧 BC，",
+"同弧所对的圆周角相等：∠BDC = ∠A",
+"",
+"代入：",
+"sinA = a/(2R)  →  a/sinA = 2R",
+"对 B、C 同理：",
+"a/sinA = b/sinB = c/sinC = 2R        ∎",
+"",
+"例：a = 7，A = 30°    2R = 14  →  R = 7"
+] },
+
+{ from:0.2333, tier:'高中', star:3, title:'余弦定理：c² = a² + b² − 2ab cosC',
+  lines:[
+"把三角形放进坐标系：C 在原点，",
+"A 在 (b, 0)，B 在 (a cosC, a sinC)。",
+"",
+"c 就是 A、B 两点间的距离：",
+"c² = (a cosC − b)² + (a sinC − 0)²",
+"",
+"展开：",
+"= a²cos²C − 2ab cosC + b² + a²sin²C",
+"",
+"合并同类项（cos²C + sin²C = 1）：",
+"= a²(cos²C + sin²C) − 2ab cosC + b²",
+"= a² + b² − 2ab cosC        ∎",
+"",
+"特例：C = 90° 时 cosC = 0，退化成勾股定理",
+"",
+"例：a = 5, b = 7, C = 60°",
+"c² = 25 + 49 − 2·5·7·0.5 = 74 − 35 = 39",
+"c = √39 ≈ 6.245"
+] },
+
+{ from:0.2497, tier:'高中', star:3, title:'三角形面积 S = ½ab sinC 与海伦公式',
+  lines:[
+"以 a 为底，对应的高 h 是多少？",
+"",
+"从顶点作垂线，斜边是 b，夹角是 C：",
+"h = b sinC",
+"",
+"所以面积：",
+"S = ½ · 底 · 高 = ½ · a · b sinC        ∎",
+"",
+"三个角都能用：",
+"S = ½ab sinC = ½bc sinA = ½ca sinB",
+"",
+"【海伦公式】用三边求，令 p = (a+b+c)/2：",
+"S = √[p(p−a)(p−b)(p−c)]",
+"",
+"思路：由余弦定理 cosC = (a²+b²−c²)/(2ab)，",
+"再取 sinC = √(1−cos²C) 代入 ½ab sinC，化简即得",
+"",
+"例：3, 4, 5    p = 6",
+"S = √(6·3·2·1) = 6 ✓（½·3·4 = 6 一致）"
+] },
+
+/* ══ 高中 · 三、数列与归纳 ══ */
+{ from:0.2660, tier:'高中', star:2, title:'等比数列：乘 r 再相减，中间全部抵消',
+  lines:[
+"Sₙ = a + ar + ar² + … + ar^(n-1)",
+"",
+"两边乘 r：",
+"rSₙ = ar + ar² + … + ar^(n-1) + arⁿ",
+"",
+"两式相减，中间项全部消失：",
+"Sₙ - rSₙ = a - arⁿ",
+"(1-r)Sₙ = a(1 - rⁿ)",
+"",
+"r ≠ 1 时：",
+"Sₙ = a(1 - rⁿ)/(1 - r)        ∎",
+"r = 1 时 Sₙ = na",
+"",
+"若 |r| < 1，令 n → ∞，rⁿ → 0：",
+"S∞ = a/(1-r)",
+"例：1 + 1/2 + 1/4 + … = 1/(1-1/2) = 2"
+] },
+
+{ from:0.2823, tier:'高中', star:3, title:'数学归纳法：1+3+5+…+(2n−1) = n²',
+  lines:[
+"记 P(n)：1 + 3 + 5 + … + (2n−1) = n²",
+"",
+"【第一步】验证 n = 1：",
+"左边 = 1，右边 = 1² = 1，成立。",
+"",
+"【第二步】假设 P(k) 成立，即",
+"1 + 3 + … + (2k−1) = k²",
+"",
+"要证 P(k+1)：",
+"1 + 3 + … + (2k−1) + (2k+1)",
+"= k² + (2k+1)          ← 用了归纳假设",
+"= k² + 2k + 1",
+"= (k+1)²",
+"",
+"所以 P(k+1) 也成立。由归纳法，",
+"对一切正整数 n，P(n) 成立        ∎",
+"",
+"两步缺一不可：n=1 是起点，递推是链条。",
+"少掉起点，能「证明」所有自然数都相等。"
+] },
+
+{ from:0.2987, tier:'高中', star:3, title:'斐波那契通项：特征方程法',
+  lines:[
+"递推：aₙ = aₙ₋₁ + aₙ₋₂，a₁ = a₂ = 1",
+"",
+"猜形如 aₙ = rⁿ 的解，代入递推式：",
+"rⁿ = rⁿ⁻¹ + rⁿ⁻²",
+"两边除以 rⁿ⁻²：",
+"r² = r + 1",
+"",
+"特征方程 r² - r - 1 = 0，解出：",
+"φ = (1+√5)/2 ≈ 1.618    ψ = (1-√5)/2 ≈ -0.618",
+"",
+"通解是两者的线性组合：",
+"aₙ = A·φⁿ + B·ψⁿ",
+"",
+"代初值 a₁ = a₂ = 1：",
+"Aφ + Bψ = 1",
+"Aφ² + Bψ² = 1",
+"解得 A = 1/√5，B = -1/√5",
+"",
+"aₙ = (φⁿ - ψⁿ)/√5        ∎",
+"因 |ψ| < 1，n 大时 aₙ ≈ φⁿ/√5，相邻项之比趋于 φ"
+] },
+
+/* ══ 高中 · 四、向量与解析几何 ══ */
+{ from:0.3150, tier:'高中', star:3, title:'向量数量积：a·b = x₁x₂ + y₁y₂ 的由来',
+  lines:[
+"定义：a·b = |a||b| cosθ",
+"",
+"取正交单位向量 i, j，",
+"a = x₁i + y₁j，b = x₂i + y₂j",
+"",
+"按分配律展开：",
+"a·b = (x₁i + y₁j)·(x₂i + y₂j)",
+"    = x₁x₂(i·i) + x₁y₂(i·j) + y₁x₂(j·i) + y₁y₂(j·j)",
+"",
+"由正交单位性：",
+"i·i = 1，j·j = 1，i·j = j·i = 0",
+"",
+"于是：",
+"a·b = x₁x₂ + y₁y₂        ∎",
+"",
+"推论：垂直 ⟺ a·b = 0 ⟺ x₁x₂ + y₁y₂ = 0",
+"例：a=(3,4)，b=(−4,3)",
+"点积 = −12 + 12 = 0，两者垂直 ✓"
+] },
+
+{ from:0.3313, tier:'高中', star:3, title:'点到直线距离：|Ax₀+By₀+C| / √(A²+B²)',
+  lines:[
+"直线 l: Ax + By + C = 0，点 P₀(x₀, y₀)。",
+"",
+"直线的法向量 n = (A, B)。",
+"在 l 上任取一点 P₁(x₁, y₁)，则 Ax₁+By₁+C = 0。",
+"",
+"P₀ 到 l 的距离，就是向量 P₁P₀ 在法向 n 上的投影长度：",
+"d = |P₁P₀ · n| / |n|",
+"",
+"算分子：",
+"P₁P₀ · n = A(x₀−x₁) + B(y₀−y₁)",
+"         = (Ax₀ + By₀) − (Ax₁ + By₁)",
+"由 l 的方程 Ax₁+By₁ = −C，代入：",
+"         = Ax₀ + By₀ + C",
+"",
+"分母 |n| = √(A²+B²)，取绝对值：",
+"d = |Ax₀ + By₀ + C| / √(A²+B²)        ∎",
+"",
+"例：点 (0,0) 到 3x + 4y − 10 = 0",
+"d = |−10|/√(9+16) = 10/5 = 2"
+] },
+
+{ from:0.3477, tier:'高中', star:3, title:'圆的方程：(x−a)² + (y−b)² = r² 与一般式',
+  lines:[
+"圆的定义：到定点 (a,b) 距离等于 r 的点的集合。",
+"",
+"用两点距离公式写出这个条件：",
+"√[(x−a)² + (y−b)²] = r",
+"",
+"两边平方：",
+"(x−a)² + (y−b)² = r²        ∎",
+"",
+"展开：",
+"x² − 2ax + a² + y² − 2by + b² = r²",
+"x² + y² − 2ax − 2by + (a²+b²−r²) = 0",
+"",
+"记 D = −2a，E = −2b，F = a²+b²−r²：",
+"x² + y² + Dx + Ey + F = 0        一般式",
+"",
+"配方回标准式：",
+"(x + D/2)² + (y + E/2)² = (D²+E²−4F)/4",
+"圆心 (−D/2, −E/2)，半径 ½√(D²+E²−4F)",
+"",
+"有实圆的条件：D² + E² − 4F > 0"
+] },
+
+{ from:0.3640, tier:'高中', star:4, title:'椭圆标准方程：到两定点距离之和为常数',
+  lines:[
+"定义：|PF₁| + |PF₂| = 2a（2a > |F₁F₂|）。",
+"",
+"取焦点 F₁(−c,0)，F₂(c,0)，设 P(x,y)：",
+"√[(x+c)² + y²] + √[(x−c)² + y²] = 2a",
+"",
+"移一项再平方：",
+"√[(x+c)²+y²] = 2a − √[(x−c)²+y²]",
+"(x+c)² + y² = 4a² − 4a√[…] + (x−c)² + y²",
+"",
+"左边展开，用 (x+c)²−(x−c)² = 4cx：",
+"4cx = 4a² − 4a√[(x−c)²+y²]",
+"a√[(x−c)²+y²] = a² − cx",
+"",
+"再平方一次：",
+"a²[(x−c)² + y²] = a⁴ − 2a²cx + c²x²",
+"a²x² − 2a²cx + a²c² + a²y² = a⁴ − 2a²cx + c²x²",
+"(a²−c²)x² + a²y² = a²(a²−c²)",
+"",
+"令 b² = a² − c²，两边除以 a²b²：",
+"x²/a² + y²/b² = 1        ∎",
+"",
+"a 长半轴，b 短半轴，c² = a²−b²，离心率 e = c/a"
+] },
+
+/* ══ 高中 · 五、不等式 ══ */
+{ from:0.3803, tier:'高中', star:3, title:'AM-GM：算术平均不小于几何平均',
+  lines:[
+"要证 (a+b)/2 ≥ √(ab)，a,b > 0",
+"",
+"起点是一个平方恒非负：",
+"(√a - √b)² ≥ 0",
+"",
+"展开：",
+"a - 2√(ab) + b ≥ 0",
+"",
+"移项：",
+"a + b ≥ 2√(ab)  →  (a+b)/2 ≥ √(ab)        ∎",
+"",
+"取等当且仅当 √a = √b，即 a = b",
+"",
+"三项版本（由两项反复推出）：",
+"(a+b+c)/3 ≥ ∛(abc)",
+"",
+"例：x > 0，求 x + 4/x 的最小值",
+"x + 4/x ≥ 2√(x·4/x) = 2√4 = 4",
+"取等 x = 4/x  →  x = 2，最小值 4"
+] },
+
+{ from:0.3967, tier:'高中', star:4, title:'柯西不等式：构造一个辅助函数',
+  lines:[
+"要证：(Σ aᵢbᵢ)² ≤ (Σ aᵢ²)(Σ bᵢ²)",
+"",
+"构造关于 x 的函数：",
+"f(x) = Σ (aᵢx + bᵢ)² ≥ 0        （平方和恒非负）",
+"",
+"展开：",
+"f(x) = (Σaᵢ²)x² + 2(Σaᵢbᵢ)x + (Σbᵢ²)",
+"开口向上的二次函数且不低于 0，判别式必然 ≤ 0：",
+"Δ = 4(Σaᵢbᵢ)² - 4(Σaᵢ²)(Σbᵢ²) ≤ 0",
+"",
+"即 (Σaᵢbᵢ)² ≤ (Σaᵢ²)(Σbᵢ²)      ∎",
+"",
+"取等：存在 x₀ 使 aᵢx₀ + bᵢ = 0 对所有 i，即 a、b 线性相关",
+"例：a=(1,2) b=(3,4)：(3+8)² = 121 ≤ (1+4)(9+16) = 125 ✓"
+] },
+
+/* ══ 高中 · 六、立体几何 ══ */
+{ from:0.4130, tier:'高中', star:3, title:'球的体积 4/3πr³（祖暅原理）',
+  lines:[
+"取半径 r 的半球，和一个「圆柱挖去圆锥」比高。",
+"圆柱：底半径 r、高 r；圆锥：同底同高，倒扣着挖掉。",
+"",
+"在高度 h 处横截一刀：",
+"半球截面 = π(r² - h²)",
+"圆柱减圆锥截面 = πr² - πh² = π(r² - h²)",
+"",
+"两者处处截面相等，由祖暅原理（Cavalieri）：体积相等",
+"",
+"圆柱体积 = πr²·r = πr³",
+"圆锥体积 = (1/3)πr²·r = (1/3)πr³",
+"",
+"半球 = πr³ - (1/3)πr³ = (2/3)πr³",
+"球   = 2 × (2/3)πr³ = (4/3)πr³        ∎",
+"",
+"关键：横截面积相等 ⟹ 体积相等，不必逐块切片"
+] },
+
+{ from:0.4293, tier:'高中', star:3, title:'棱锥体积为什么是 1/3 Sh',
+  lines:[
+"先看棱柱：V = S·h。",
+"",
+"棱柱可以沿对角面切成三个等体积的三棱锥。",
+"",
+"以三棱柱 ABC−A₁B₁C₁ 为例，切成三块：",
+"锥1: A₁−ABC      锥2: A₁−B₁BC      锥3: A₁−B₁C₁C",
+"",
+"锥1 与 锥2：锥1 = C−A₁AB，锥2 = C−A₁B₁B，都以 C 为顶点。",
+"底面 △A₁AB 与 △A₁B₁B 在平行四边形 ABB₁A₁ 内，",
+"被对角线 A₁B 分成两块，面积相等；高也相同。",
+"所以 V(锥1) = V(锥2)。",
+"",
+"锥2 与 锥3：都以 A₁ 为顶点，底面 △BB₁C 与 △B₁C₁C",
+"在平行四边形 BCC₁B₁ 内面积相等，高也相同。",
+"所以 V(锥2) = V(锥3)。",
+"",
+"三者体积相等且加起来是整个棱柱：",
+"3·V锥 = S·h   →   V锥 = (1/3)Sh        ∎",
+"",
+"一般锥体用切片积分得到同一个 1/3：",
+"V = ∫₀ʰ S(z/h)² dz = S·h/3"
+] },
+
+/* ══ 高中 · 七、计数与概率统计 ══ */
+{ from:0.4457, tier:'高中', star:3, title:'排列数 A(n,k) = n!/(n−k)! 的乘法原理',
+  lines:[
+"从 n 个不同元素中取出 k 个，按顺序排成一列。",
+"",
+"逐步填位：",
+"第 1 位：n 种选择",
+"第 2 位：剩 n−1 种",
+"第 3 位：剩 n−2 种",
+"…",
+"第 k 位：剩 n−k+1 种",
+"",
+"由乘法原理，总数相乘：",
+"A(n,k) = n(n−1)(n−2)…(n−k+1)",
+"",
+"补上 (n−k)! 凑成阶乘：",
+"A(n,k) = n! / (n−k)!        ∎",
+"",
+"组合数（不计顺序）要把重复的 k! 除掉：",
+"C(n,k) = A(n,k)/k! = n!/[k!(n−k)!]",
+"",
+"例：A(5,3) = 5×4×3 = 60     C(5,3) = 60/6 = 10"
+] },
+
+{ from:0.4620, tier:'高中', star:3, title:'二项式定理：那些系数是从哪来的',
+  lines:[
+"要算 (a+b)ⁿ 展开后 aⁿ⁻ᵏbᵏ 的系数。",
+"",
+"把 (a+b)ⁿ 看成 n 个 (a+b) 相乘：",
+"(a+b)(a+b)…(a+b)",
+"",
+"展开时，从每个括号里各取一个 a 或一个 b 相乘。",
+"要凑出 aⁿ⁻ᵏbᵏ，就得挑 k 个括号取 b，",
+"剩下 n-k 个自然取 a。",
+"",
+"挑法数就是从 n 个里选 k 个的组合数：",
+"C(n,k) = n!/(k!(n-k)!)",
+"",
+"所以",
+"(a+b)ⁿ = Σ(k=0..n) C(n,k)·aⁿ⁻ᵏ·bᵏ        ∎",
+"",
+"例：(x+1)⁴ = x⁴ + 4x³ + 6x² + 4x + 1",
+"系数 1,4,6,4,1 正是 C(4,0)…C(4,4)",
+"代 a=b=1：(1+1)ⁿ = 2ⁿ = Σ C(n,k)     n=4 时 16 ✓"
+] },
+
+{ from:0.4783, tier:'高中', star:3, title:'贝叶斯公式：阳性就一定是病吗',
+  lines:[
+"条件概率定义：P(A|B) = P(A∩B) / P(B)",
+"",
+"由此得乘法公式 P(A∩B) = P(B|A)P(A)，于是：",
+"",
+"P(A|B) = P(B|A)·P(A) / P(B)",
+"",
+"分母用全概率公式展开：",
+"P(B) = Σᵢ P(B|Aᵢ)·P(Aᵢ)",
+"",
+"例：患病率 0.1%，灵敏度 99%，特异度 99%",
+"设 A = 患病，B = 检测阳性",
+"P(A) = 0.001，P(B|A) = 0.99，P(B|¬A) = 0.01",
+"",
+"P(B) = 0.99×0.001 + 0.01×0.999 = 0.01098",
+"P(A|B) = 0.00099 / 0.01098 ≈ 9.0%",
+"",
+"阳性只有 9% 真患病 —— 因为健康人基数大得多"
+] },
+
+{ from:0.4947, tier:'高中', star:4, title:'期望与方差：定义、性质、化简',
+  lines:[
+"离散型随机变量 X 取值 xᵢ，概率 pᵢ。",
+"",
+"【期望】加权平均：",
+"E(X) = Σ xᵢpᵢ        ∎",
+"",
+"线性性（不需要独立）：",
+"E(aX + b) = aE(X) + b",
+"E(X + Y) = E(X) + E(Y)",
+"",
+"【方差】偏离均值的平方的期望：",
+"D(X) = E[(X − E(X))²]",
+"",
+"展开化简：",
+"D(X) = E[X² − 2X·E(X) + E(X)²]",
+"     = E(X²) − 2E(X)E(X) + E(X)²",
+"     = E(X²) − [E(X)]²        ∎",
+"",
+"性质：D(aX+b) = a²D(X)（平移不变，缩放取平方）",
+"",
+"例：掷骰子  E = (1+…+6)/6 = 3.5",
+"E(X²) = (1+4+9+16+25+36)/6 = 91/6 ≈ 15.167",
+"D = 15.167 − 12.25 = 2.9167"
+] },
+
+/* ══ 高中 · 八、导数 ══ */
+{ from:0.5110, tier:'高中', star:3, title:'从极限定义算出 (xⁿ)′ = n·xⁿ⁻¹',
+  lines:[
+"f′(x) = lim(h→0) [ (x+h)ⁿ - xⁿ ] / h",
+"",
+"二项式展开：",
+"(x+h)ⁿ = xⁿ + n·xⁿ⁻¹h + C(n,2)xⁿ⁻²h² + … + hⁿ",
+"相减，xⁿ 消掉：",
+"(x+h)ⁿ - xⁿ = n·xⁿ⁻¹h + O(h²)",
+"除以 h：",
+"[ (x+h)ⁿ - xⁿ ] / h = n·xⁿ⁻¹ + O(h)",
+"令 h→0，余项消失：",
+"(xⁿ)′ = n·xⁿ⁻¹        ∎",
+"",
+"例 n=3：",
+"(x³)′ = lim [3x²h + 3xh² + h³]/h",
+"      = lim (3x² + 3xh + h²) = 3x²"
+] },
+
+{ from:0.5273, tier:'高中', star:3, title:'(1 + 1/n)ⁿ 为什么收敛到 e',
+  lines:[
+"令 yₙ = (1 + 1/n)ⁿ，取对数：",
+"ln yₙ = n · ln(1 + 1/n)",
+"",
+"用展开 ln(1+t) = t - t²/2 + t³/3 - …，代 t = 1/n：",
+"ln yₙ = n · (1/n - 1/2n² + 1/3n³ - …)",
+"     = 1 - 1/(2n) + 1/(3n²) - …",
+"",
+"n → ∞ 时除首项外全部归零：",
+"lim ln yₙ = 1",
+"因为 exp 连续：",
+"lim yₙ = e¹ = e ≈ 2.718281828    ∎",
+"",
+"数值验证：n=1 → 2   n=10 → 2.5937",
+"          n=100 → 2.7048   n=10⁶ → 2.718280"
+] },
+
+{ from:0.5437, tier:'高中', star:4, title:'导数符号决定单调性与极值',
+  lines:[
+"f′(x₀) 的几何意义：曲线在 x₀ 处切线的斜率。",
+"",
+"【定理】若区间上 f′(x) > 0，则 f 递增。",
+"",
+"证明（拉格朗日中值定理）：",
+"任取 x₁ < x₂，存在 ξ ∈ (x₁,x₂) 使",
+"f(x₂) − f(x₁) = f′(ξ)(x₂ − x₁)",
+"",
+"因为 f′(ξ) > 0 且 x₂ − x₁ > 0：",
+"f(x₂) − f(x₁) > 0，即 f(x₁) < f(x₂)",
+"所以 f 严格递增        ∎",
+"同理 f′(x) < 0 则递减。",
+"",
+"【极值判定】f′(x₀) = 0 时看两侧符号：",
+"由 + 变 −  →  极大值",
+"由 − 变 +  →  极小值",
+"不变号     →  不是极值（如 y = x³ 在 0 处）",
+"",
+"例：f = x³ − 3x，f′ = 3(x−1)(x+1)",
+"极大 f(−1) = 2，极小 f(1) = −2"
+] },
+
+/* ══ 大学 ══ */
+{ from:0.5600, tier:'大学', star:4, title:'微积分基本定理：求导与积分互为逆运算',
+  lines:[
+"设 F(x) = ∫ₐˣ f(t) dt，要求 F′(x)",
+"",
+"按导数定义：",
+"F′(x) = lim(h→0) [F(x+h) - F(x)] / h",
+"",
+"而 F(x+h) - F(x) = ∫ₓ^(x+h) f(t) dt",
+"",
+"由积分中值定理，存在 ξ ∈ [x, x+h]：",
+"∫ₓ^(x+h) f(t) dt = f(ξ)·h",
+"",
+"代回：",
+"F′(x) = lim f(ξ)h/h = lim f(ξ)",
+"h→0 时 ξ→x，f 连续 ⟹ f(ξ)→f(x)",
+"",
+"F′(x) = f(x)        ∎",
+"推论：∫ₐᵇ f(x)dx = F(b) - F(a)"
+] },
+
+{ from:0.5800, tier:'大学', star:4, title:'洛必达法则：0/0 型为什么能上下求导',
+  lines:[
+"要算 lim(x→a) f(x)/g(x)，f(a) = g(a) = 0",
+"",
+"由柯西中值定理，存在 ξ 介于 a 与 x 之间：",
+"f(x)/g(x) = [f(x)-f(a)]/[g(x)-g(a)] = f′(ξ)/g′(ξ)",
+"",
+"当 x → a 时 ξ → a，若 f′/g′ 在 a 处有极限：",
+"lim f(x)/g(x) = lim f′(x)/g′(x)        ∎",
+"",
+"例：lim(x→0) sin x / x = lim cos x / 1 = 1",
+"例：lim(x→0) (eˣ - 1)/x = lim eˣ / 1 = 1",
+"",
+"注意：前提是 0/0 或 ∞/∞，且上下求导后极限存在",
+"反复求导可能打转（如 sin x/x 的三阶导）"
+] },
+
+{ from:0.6000, tier:'大学', star:4, title:'分部积分：把乘积求导反过来用',
+  lines:[
+"从乘积求导法则出发：",
+"(uv)′ = u′v + u v′",
+"",
+"两边积分：",
+"uv = ∫u′v dx + ∫u v′ dx",
+"",
+"移项：",
+"∫u v′ dx = uv - ∫u′v dx",
+"",
+"写成微分形式更顺手：",
+"∫u dv = uv - ∫v du        ∎",
+"",
+"例：∫ x eˣ dx",
+"取 u = x，dv = eˣdx，则 du = dx，v = eˣ",
+"= x eˣ - ∫ eˣ dx = x eˣ - eˣ + C",
+"",
+"验算：(x eˣ - eˣ)′ = eˣ + x eˣ - eˣ = x eˣ ✓",
+"选 u 要「求导后变简单」，选 dv 要「好积」"
+] },
+
+{ from:0.6200, tier:'大学', star:4, title:'泰勒展开：用多项式一阶一阶逼近 eˣ',
+  lines:[
+"f(x) = Σ(k=0..∞) f⁽ᵏ⁾(0)·xᵏ/k!",
+"",
+"eˣ 的每一阶导数都还是 eˣ，在 0 处：",
+"f⁽ᵏ⁾(0) = e⁰ = 1      对一切 k",
+"",
+"代入：",
+"eˣ = 1 + x + x²/2! + x³/3! + …",
+"",
+"余项（ξ 介于 0 与 x 之间）：",
+"Rₙ = e^ξ · xⁿ⁺¹/(n+1)!",
+"",
+"代 x = 1：",
+"e = 1 + 1 + 1/2 + 1/6 + 1/24 + 1/120 + …",
+"",
+"n=5 ：2.7167      n=10：2.7182818",
+"截断误差 < 3/(11!) ≈ 7.5×10⁻⁸"
+] },
+
+{ from:0.6400, tier:'大学', star:5, title:'拉格朗日乘子：带约束的极值',
+  lines:[
+"求 f(x,y) 在约束 g(x,y) = 0 下的极值。",
+"",
+"几何直观：在极值点，等高线 f = c 与约束曲线 g = 0 相切，",
+"所以两者的法向量平行：",
+"∇f = λ ∇g",
+"",
+"构造拉格朗日函数：",
+"L(x,y,λ) = f(x,y) - λ·g(x,y)",
+"",
+"令三个偏导同时为零：",
+"∂L/∂x = f_x - λg_x = 0",
+"∂L/∂y = f_y - λg_y = 0",
+"∂L/∂λ = -g(x,y) = 0     （这行就是约束本身）",
+"",
+"例：求 xy 在 x+y = 10 下的最大值",
+"L = xy - λ(x+y-10)",
+"y = λ，x = λ，x+y = 10  →  x = y = 5",
+"最大值 = 25        ∎"
+] },
+
+{ from:0.6600, tier:'大学', star:4, title:'特征值：解 det(A - λI) = 0',
+  lines:[
+"A = [ 2  1 ]",
+"    [ 1  2 ]",
+"",
+"A - λI = [ 2-λ   1  ]",
+"        [  1   2-λ ]",
+"",
+"行列式：",
+"det = (2-λ)² - 1 = λ² - 4λ + 3",
+"",
+"令其为 0：",
+"(λ-1)(λ-3) = 0  →  λ₁ = 1, λ₂ = 3",
+"",
+"求特征向量 (A - λI)v = 0：",
+"λ=1：[1 1; 1 1]v = 0  →  v₁ = (1,-1)/√2",
+"λ=3：[-1 1; 1 -1]v = 0 →  v₂ = (1,1)/√2",
+"",
+"验算：A·v₂ = (3,3)/√2 = 3·v₂ ✓",
+"校验：tr(A) = λ₁+λ₂ = 4 ✓   det(A) = λ₁λ₂ = 3 ✓"
+] },
+
+{ from:0.6800, tier:'大学', star:4, title:'高斯积分：极坐标换元，一维变二维',
+  lines:[
+"求 I = ∫(-∞..∞) e^(-x²/2) dx",
+"一维积不动，先平方：",
+"I² = ∫∫ e^(-(x²+y²)/2) dx dy",
+"",
+"换极坐标 x = r cosθ, y = r sinθ",
+"雅可比行列式：dx dy = r dr dθ",
+"x² + y² = r²，区域 r∈[0,∞), θ∈[0,2π]",
+"",
+"I² = ∫₀^(2π) ∫₀^∞ e^(-r²/2) · r dr dθ",
+"",
+"内层：∫₀^∞ e^(-r²/2)·r dr = [-e^(-r²/2)]₀^∞ = 1",
+"",
+"I² = ∫₀^(2π) 1 dθ = 2π",
+"I = √(2π) ≈ 2.5066        ∎",
+"除以 √(2π) 即标准正态分布密度"
+] },
+
+{ from:0.7000, tier:'大学', star:4, title:'微分方程：分离变量解 dy/dx = ky',
+  lines:[
+"方程：dy/dx = k y      （k 为常数）",
+"",
+"两边除以 y、乘 dx（y ≠ 0）：",
+"dy/y = k dx",
+"",
+"两边积分：",
+"∫ dy/y = ∫ k dx",
+"ln|y| = kx + C",
+"",
+"取指数：",
+"|y| = e^(kx+C) = e^C · e^(kx)",
+"",
+"把 e^C 记作任意常数 C₁（吸收绝对值）：",
+"y = C₁ · e^(kx)        ∎",
+"",
+"代初值 y(0) = y₀ 定出 C₁ = y₀：",
+"y = y₀ e^(kx)",
+"",
+"k > 0 指数增长（复利、种群），k < 0 指数衰减（半衰期）"
+] },
+
+{ from:0.7200, tier:'大学', star:5, title:'欧拉公式：e^(iπ) + 1 = 0',
+  lines:[
+"把 e^(ix) 按泰勒级数展开：",
+"e^(ix) = Σ(n≥0) (ix)ⁿ / n!",
+"",
+"奇数项带 i，偶数项是实数，拆开：",
+"= Σ(k≥0) (-1)ᵏ x^(2k) / (2k)!",
+"  + i · Σ(k≥0) (-1)ᵏ x^(2k+1) / (2k+1)!",
+"",
+"而这两串正好是：",
+"cos x = Σ (-1)ᵏ x^(2k) / (2k)!",
+"sin x = Σ (-1)ᵏ x^(2k+1) / (2k+1)!",
+"",
+"所以",
+"e^(ix) = cos x + i sin x        ∎",
+"",
+"代 x = π：cos π = -1，sin π = 0",
+"e^(iπ) = -1   →   e^(iπ) + 1 = 0",
+"",
+"五个最重要的常数 0,1,e,i,π 被一个等式串起来"
+] },
+
+/* ══ 研究生 ══ */
+{ from:0.7400, tier:'研究生', star:4, title:'ε-δ 语言：把「趋于」写成可验证的算术',
+  lines:[
+"证：lim(x→2) (3x - 1) = 5",
+"",
+"按定义，对任意 ε > 0，需要找到 δ > 0，",
+"使 0 < |x-2| < δ 时恒有 |(3x-1) - 5| < ε",
+"",
+"先逆推：",
+"|(3x-1) - 5| = |3x - 6| = 3|x - 2|",
+"要它 < ε，只需 |x-2| < ε/3",
+"于是取 δ = ε/3",
+"",
+"正写验证：当 0 < |x-2| < δ 时",
+"|(3x-1) - 5| = 3|x-2| < 3δ = 3·(ε/3) = ε",
+"",
+"成立        ∎",
+"要点：δ 是事先不知道、靠倒推算出来的"
+] },
+
+{ from:0.7600, tier:'研究生', star:5, title:'单调收敛定理：Lebesgue 积分的杀手锏',
+  lines:[
+"定理：若 0 ≤ f₁ ≤ f₂ ≤ … 且每个 fₙ 可测，",
+"则 ∫ lim fₙ = lim ∫ fₙ",
+"",
+"Riemann 积分没有这个性质。反例：",
+"把 [0,1] 中前 n 个有理数标出来，fₙ 是它们的指示函数",
+"每个 ∫ fₙ = 0（有限点集），",
+"但 lim fₙ 是有理数集的特征函数，",
+"Riemann 下不可积；",
+"Lebesgue 下它可测、且 ∫ = 0，因为有理数测度为 0",
+"",
+"区别在哪：Lebesgue 先分割值域，Riemann 先分割定义域。",
+"所以「测度为零的集合」可以被合法无视，",
+"这是现代分析的地基        ∎"
+] },
+
+{ from:0.7800, tier:'研究生', star:5, title:'留数定理：复积分一次性算掉实积分',
+  lines:[
+"求 ∫(-∞..∞) dx/(1+x²)",
+"",
+"取上半平面半圆围道 C = [-R,R] ∪ 弧 Γ_R",
+"f(z) = 1/(1+z²) 在上半平面只有一个一阶极点 z = i",
+"",
+"算留数：",
+"Res(f,i) = lim(z→i) (z-i)/(z²+1) = 1/(2i)",
+"",
+"留数定理：",
+"∮_C f dz = 2πi · Res(f,i) = 2πi·(1/(2i)) = π",
+"",
+"弧上估计：|f| ~ 1/R²，弧长 πR",
+"|∫_Γ f dz| ≤ πR/R² = π/R → 0  (R→∞)",
+"",
+"所以实轴部分：",
+"∫(-∞..∞) dx/(1+x²) = π        ∎",
+"（也可令 x = tan t 直接积出 π）"
+] },
+
+{ from:0.8000, tier:'研究生', star:5, title:'巴塞尔问题：Σ1/n² 为什么恰好是 π²/6',
+  lines:[
+"把 f(x) = x² 在 [-π,π] 展成余弦级数：",
+"",
+"a₀ = (1/π)∫(-π..π) x² dx = 2π²/3",
+"aₙ = (1/π)∫(-π..π) x² cos(nx) dx = 4(-1)ⁿ/n²",
+"",
+"得",
+"x² = π²/3 + 4·Σ(n≥1) (-1)ⁿ cos(nx)/n²",
+"",
+"代 x = π，此时 cos(nπ) = (-1)ⁿ，两者相乘为 1：",
+"π² = π²/3 + 4·Σ 1/n²",
+"4Σ1/n² = π² - π²/3 = 2π²/3",
+"",
+"Σ(n≥1) 1/n² = π²/6 ≈ 1.644934    ∎",
+"",
+"欧拉 1735 年首次算出，一举成名"
+] },
+
+{ from:0.8200, tier:'研究生', star:5, title:'Banach 不动点定理：为什么迭代一定收敛',
+  lines:[
+"设 (X,d) 完备度量空间，T: X→X 满足压缩条件：",
+"d(Tx, Ty) ≤ q·d(x,y)，  0 ≤ q < 1",
+"",
+"证存在唯一不动点 x* = T(x*)。",
+"",
+"任取 x₀，令 xₙ₊₁ = T(xₙ)。反复用压缩条件：",
+"d(xₙ₊₁, xₙ) ≤ qⁿ·d(x₁, x₀)",
+"",
+"对 m > n，三角不等式求和：",
+"d(xₘ, xₙ) ≤ Σ(k=n..m-1) qᵏ·d(x₁,x₀) ≤ qⁿ/(1-q)·d(x₁,x₀)",
+"",
+"qⁿ → 0，故 {xₙ} 是柯西列；空间完备，收敛到某 x*。",
+"T 连续（压缩必连续），取极限：",
+"x* = lim xₙ₊₁ = lim T(xₙ) = T(x*)",
+"",
+"唯一性：若 x*、y* 都是不动点，",
+"d(x*,y*) ≤ q·d(x*,y*)  ⟹ (1-q)d(x*,y*) ≤ 0  ⟹ 相等        ∎",
+"",
+"这是牛顿法、Picard 迭代、价值迭代的收敛底牌"
+] },
+
+{ from:0.8400, tier:'研究生', star:5, title:'牛顿法：二次收敛是怎么来的',
+  lines:[
+"求 √2，即解 f(x) = x² - 2 = 0",
+"",
+"牛顿迭代：xₙ₊₁ = xₙ - f(xₙ)/f′(xₙ)",
+"代 f′ = 2x：",
+"xₙ₊₁ = xₙ - (xₙ²-2)/(2xₙ) = (xₙ + 2/xₙ)/2",
+"",
+"取 x₀ = 1：",
+"x₁ = 1.5",
+"x₂ = 1.4166666…",
+"x₃ = 1.414215686…",
+"x₄ = 1.414213562…   （√2 = 1.41421356237…）",
+"",
+"每步正确位数翻倍：1 → 2 → 4 → 8 → 16",
+"",
+"误差关系（eₙ = xₙ - √2）：",
+"eₙ₊₁ ≈ (1/2√2)·eₙ²   —— 这就是二次收敛"
+] },
+
+{ from:0.8600, tier:'研究生', star:5, title:'高斯-博内定理：局部曲率决定整体拓扑',
+  lines:[
+"对紧致带边曲面 M：",
+"",
+"∬_M K dA  +  ∮_∂M k_g ds  =  2π χ(M)",
+"",
+"K 高斯曲率，k_g 边界测地曲率，χ 欧拉示性数。",
+"",
+"闭曲面（无边界）时退化成极简等式：",
+"∬_M K dA = 2π χ(M)",
+"",
+"球面：χ = 2，K = 1/r²，面积 4πr²",
+"∬ K dA = (1/r²)·4πr² = 4π = 2π·2 ✓",
+"",
+"环面：χ = 0，所以 ∬ K dA = 0",
+"（正负曲率必须恰好抵消，这是拓扑强制的）",
+"",
+"双环面：χ = -2，∬ K dA = -4π，必须负曲率",
+"",
+"无论怎么捏这个曲面，曲率积分被拓扑钉死。",
+"几何（K）与拓扑（χ）之间唯一的一条恒等桥        ∎"
+] },
+
+/* ══ 研究型 ══ */
+{ from:0.8800, tier:'研究型', star:5, title:'黎曼 ζ 函数：所有非平凡零点都在 1/2 上吗',
+  lines:[
+"ζ(s) = Σ(n≥1) 1/nˢ        (Re s > 1)",
+"",
+"由算术基本定理，它等于欧拉乘积：",
+"ζ(s) = ∏_p (1 - p^(-s))^(-1)   —— 素数被编码进去了",
+"",
+"解析延拓到整个复平面（除 s=1 一阶极点）：",
+"ζ(2)=π²/6   ζ(0)=-1/2   ζ(-1)=-1/12",
+"",
+"函数方程：",
+"ζ(s) = 2ˢ π^(s-1) sin(πs/2) Γ(1-s) ζ(1-s)",
+"",
+"平凡零点：s = -2,-4,-6,…（由 sin(πs/2) 给出）",
+"非平凡零点全部落在临界带 0 < Re s < 1 内",
+"",
+"黎曼猜想：全部满足 Re(s) = 1/2",
+"第一个零点：s₁ = 1/2 + 14.1347251417…i",
+"数值已验证前 10¹³ 个零点都在临界线上",
+"",
+"若成立，素数定理误差从 O(x·e^(-c√lnx)) 改进到 O(x^(1/2+ε))"
+] },
+
+{ from:0.8971, tier:'研究型', star:5, title:'哥德巴赫猜想：素数能不能拼出所有偶数',
+  lines:[
+"强猜想：每个大于 2 的偶数都能写成两个素数之和。",
+"",
+"4 = 2+2    6 = 3+3    8 = 3+5",
+"10 = 5+5   12 = 5+7   14 = 3+11",
+"100 = 3+97 = 11+89 = 17+83 = 29+71 = 41+59",
+"",
+"数值已验证到 4×10¹⁸，无任何反例，但这不是证明。",
+"",
+"弱猜想：每个大于 5 的奇数都是三个素数之和。",
+"2013 年 Helfgott 完成证明（弱哥德巴赫已解决）。",
+"",
+"强猜想至今未破。最接近的是陈景润 1973 的 1+2：",
+"每个充分大的偶数 = 一个素数 + 一个至多两个素因子的数",
+"",
+"圆法（Hardy-Littlewood）能给出「几乎所有偶数」成立，",
+"但剩下那部分始终覆盖不到。",
+"",
+"障碍在于：筛法对二元加法问题有 parity 障碍，",
+"无法区分「恰好一个素因子」与「三个素因子」。"
+] },
+
+{ from:0.9143, tier:'研究型', star:5, title:'连续统假设：实数到底有多少个',
+  lines:[
+"ℵ₀ 是可数无穷（自然数、有理数、代数数都是这个大小）。",
+"连续统 c = 2^ℵ₀ 是实数的大小。",
+"",
+"1878 年 Cantor 猜想：c = ℵ₁",
+"即自然数幂集的大小，恰好是「最小的不可数无穷」。",
+"这就是连续统假设（CH）。",
+"",
+"Gödel 1938：ZFC + CH 一致",
+"（可构造宇宙 L 中 CH 成立）",
+"",
+"Cohen 1963：ZFC + ¬CH 也一致",
+"（用他发明的力迫法 / forcing）",
+"",
+"合起来：CH 在标准公理体系中不可判定        ∎",
+"",
+"所以「实数有多少个」在 ZFC 之内没有答案。",
+"你可以一致地假设 c = ℵ₁、c = ℵ₂、甚至 c = ℵ_n。",
+"（有约束：由 König 定理，c 的共尾度必须大于 ℵ₀）"
+] },
+
+{ from:0.9314, tier:'研究型', star:5, title:'Navier-Stokes：三维流体会不会在有限时间爆破',
+  lines:[
+"不可压 N-S 方程：",
+"∂u/∂t + (u·∇)u = -∇p/ρ + νΔu + f",
+"∇·u = 0",
+"",
+"u 速度场，p 压强，ν 运动粘度，f 外力",
+"",
+"二维：已证全局光滑解存在且唯一",
+"三维：未知 —— 千禧年七问之一",
+"",
+"要判定的是：给定光滑初值 u₀，|∇u₀| 有限，",
+"是否存在 T>0 与光滑解，且 ‖∇u‖ 在 [0,T] 上有界",
+"",
+"爆破判据（Beale-Kato-Majda）：",
+"若解在 T* 失去光滑性，则",
+"∫₀^(T*) ‖ω(t)‖_∞ dt = ∞,   ω = ∇×u",
+"也就是说涡量必须真的发散",
+"",
+"现状：只证得弱解存在（Leray-Hopf），唯一性与正则性未知",
+"悬赏 100 万美元"
+] },
+
+{ from:0.9486, tier:'研究型', star:5, title:'P vs NP：验证容易，为什么求解不一定容易',
+  lines:[
+"P  = ∪(k) DTIME(nᵏ)     多项式时间可解",
+"NP = ∪(k) NTIME(nᵏ)     多项式时间可验证",
+"",
+"已知：P ⊆ NP。猜想：P ≠ NP",
+"",
+"核心：Cook-Levin 定理（1971）—— SAT 是 NP-完全",
+"",
+"证明思路：取任意 L ∈ NP，存在非确定图灵机 M 在 p(n) 步内判定",
+"把 M 在输入 w 上的整条计算路径编码成布尔公式 φ：",
+"变量数 ~ O(p(n)²)，每个格局的台符、状态、读写头位置都要约束",
+"φ 可满足 ⟺ M 接受 w",
+"于是 L ≤ₚ SAT，SAT 是最难的",
+"3-SAT 同理（把长子句拆成三元）",
+"",
+"后果：若 P = NP，RSA 与椭圆曲线全部瞬时失效",
+"已知最好下界只有 NP ⊄ DTIME(n) 这类极弱结论",
+"相对化、自然证明、代数化三道障碍挡住了现有方法"
+] },
+
+{ from:0.9657, tier:'研究型', star:5, title:'霍奇猜想与 BSD：代数几何的两座山',
+  lines:[
+"【霍奇猜想】",
+"紧 Kähler 流形 X 上，取有理上同调 H^(2p)(X,Q)，",
+"其中形如 (p,p) 的类（霍奇类），",
+"是否都能写成代数闭链的有理线性组合？",
+"",
+"H^(2p)(X,Q) ⊇ 代数闭链类 ⊕ 霍奇类",
+"猜想：两者相等（对射影簇）",
+"",
+"通俗说：拓扑画出来的「洞」，能不能都用代数方程描出来。",
+"千禧年七问之一，至今未解。",
+"",
+"【BSD 猜想】",
+"椭圆曲线 E/Q 的有理点群有限生成：E(Q) ≅ Z^r ⊕ T",
+"r 是秩，T 是挠子群。",
+"",
+"BSD：r = ord_(s=1) L(E,s)",
+"「秩」等于「L 函数在 s=1 的零点阶」。",
+"",
+"左边纯代数（有理点有多自由），右边纯解析（复函数的零点），",
+"猜想它们完全对应 —— 同样是千禧年七问。"
+] },
+
+{ from:0.9829, tier:'研究型', star:5, title:'孪生素数：素数之间到底能隔多近',
+  lines:[
+"猜想：存在无穷多对 (p, p+2) 同时为素数",
+"",
+"猜测的渐近式（Hardy-Littlewood）：",
+"π₂(x) ~ 2·C₂·x/(ln x)²",
+"",
+"孪生素数常数：",
+"C₂ = ∏(p>2) (1 - 1/(p-1)²) ≈ 0.6601618158",
+"",
+"实例：(3,5) (5,7) (11,13) (17,19) (29,31) (41,43)",
+"     (1000000007, 1000000009)",
+"",
+"2013 张益唐：存在无穷多对素数，间距 ≤ 7×10⁷",
+"用的是 GPY 筛法加上对误差项的突破性控制",
+"",
+"Maynard 与 Tao 独立改进到 600",
+"Polymath8 合作项目推进到 246",
+"只要降到 2，孪生素数猜想即被证明",
+"",
+"目前已知：无限多对素数间距 ≤ 246"
+] }
+
+];
+
+const MATH_LEN = MATH_STAGES.length;
+
+/* 左栏短名，与 MATH_STAGES 顺序一一对应（58 关） */
+const SHORTS = [
+'二次求根','勾股定理','等差求和','圆的面积','消元法',
+'指数法则','对数换底','二次顶点式','一元二次不等式','单调性判定','弧度制','诱导公式','三角和角','正弦型周期','正弦定理','余弦定理','三角形面积',
+'等比求和','数学归纳法','特征根','向量数量积','点线距离','圆的方程','椭圆方程',
+'AM-GM','柯西不等式','球体积','棱锥体积','排列数','二项式定理','贝叶斯','期望与方差',
+'幂函数求导','e 的极限','导数与单调性',
+'微积分基本定理','洛必达','分部积分','泰勒展开','拉格朗日乘子','矩阵特征值','高斯积分','微分方程','欧拉公式',
+'ε-δ 语言','单调收敛','留数定理','巴塞尔问题','不动点定理','牛顿法','高斯-博内',
+'黎曼 ζ','哥德巴赫','连续统假设','Navier-Stokes','P vs NP','霍奇/BSD','孪生素数'
+];
+
+/* 右栏 3D 图解类型，与 MATH_STAGES 顺序一一对应（58 关） */
+const SHAPES = [
+'parab','pyth','stair','circle','planes',
+'growth','logscale','parab','parab','tangent','circle','circle','circle','wave','circle','pyth','pyth',
+'stair','stair','spiral','field','planes','circle','ellipse',
+'parab','field','sphere','pyramid','tree','tree','tree','histogram',
+'tangent','helix','tangent',
+'tangent','tangent','byparts','helix','parab','field','bell','spiral','helix',
+'tangent','monotone','contour','field','spiral','tangent','torus',
+'zeta','pairs','layers','field','tree','torus','sieve'
+];
+
+let curShape = 'parab';
+
+/* ═══════════ 天空：不属于主干的选学/延伸（向上飞） ═══════════ */
+const SKY_STAGES = [
+
+{ from:0.0000, tier:'延伸', star:2, title:'复数：i 从哪来，几何意义是什么',
+  lines:[
+"解 x² + 1 = 0，在实数范围内无解——",
+"因为任何实数的平方都 ≥ 0。",
+"",
+"补上这个缺口：人为引入符号 i，规定",
+"i² = −1",
+"",
+"把所有形如 a + bi（a,b ∈ ℝ）的数收集起来：",
+"ℂ = {a + bi : a, b ∈ ℝ}",
+"",
+"运算与实数一致，只在最后用 i² = −1 化简：",
+"(a+bi) + (c+di) = (a+c) + (b+d)i",
+"(a+bi)(c+di) = (ac − bd) + (ad + bc)i",
+"",
+"几何意义：把 a + bi 看成平面上的点 (a, b)。",
+"加法 = 向量加法，模 |a+bi| = √(a²+b²)，",
+"共轭 a − bi = 关于实轴镜像。",
+"",
+"乘法的意义：模相乘，幅角相加。",
+"|z₁z₂| = |z₁||z₂|     arg(z₁z₂) = arg z₁ + arg z₂",
+"",
+"例：(2+3i)(1−i) = 2 − 2i + 3i − 3i² = 5 + i"
+] },
+
+{ from:0.0556, tier:'延伸', star:3, title:'棣莫弗定理：三角恒等式的一行机器',
+  lines:[
+"记 z = cosθ + i sinθ，其模为 1，幅角为 θ。",
+"",
+"由「模相乘、角相加」：",
+"z² = (cosθ + i sinθ)² = cos2θ + i sin2θ",
+"",
+"累乘 n 次，归纳可得：",
+"(cosθ + i sinθ)ⁿ = cos(nθ) + i sin(nθ)        ∎",
+"",
+"它把「三角恒等变换」变成了「指数运算」。",
+"",
+"例：求 cos3θ",
+"把 (cosθ + i sinθ)³ 展开：",
+"cos³θ + 3cos²θ(i sinθ) + 3cosθ(i sinθ)² + (i sinθ)³",
+"",
+"取实部（注意 i² = −1，i³ = −i）：",
+"实部 = cos³θ − 3cosθ sin²θ",
+"用 sin²θ = 1 − cos²θ 再化简：",
+"cos3θ = 4cos³θ − 3cosθ        ∎",
+"",
+"用和差化积硬推要写半页，棣莫弗一行就出。"
+] },
+
+{ from:0.1111, tier:'延伸', star:2, title:'极坐标与参数方程：换一种说法描述曲线',
+  lines:[
+"直角坐标 (x, y) 之外，还有两套常用写法。",
+"",
+"【极坐标】用「到原点的距离 ρ」和「与 x 轴夹角 θ」：",
+"x = ρ cosθ",
+"y = ρ sinθ",
+"",
+"例：圆 x² + y² = 2rx 换成极坐标",
+"ρ² = 2r·ρ cosθ",
+"ρ = 2r cosθ      （ρ ≠ 0）",
+"圆心 (r, 0)，半径 r —— 极坐标下就一行。",
+"",
+"【参数方程】用第三个变量同时表示 x 和 y：",
+"椭圆 x²/a² + y²/b² = 1 可写成",
+"x = a cosθ",
+"y = b sinθ",
+"",
+"验证：",
+"(a cosθ)²/a² + (b sinθ)²/b² = cos²θ + sin²θ = 1 ✓",
+"",
+"好处：把「曲线上的点」压缩成一个参数 θ，",
+"求距离、求面积时直接对 θ 求导或积分即可。"
+] },
+
+{ from:0.1667, tier:'延伸', star:3, title:'和差化积：从和角公式加减出来',
+  lines:[
+"从和角公式出发：",
+"sin(A+B) = sinA cosB + cosA sinB    …(1)",
+"sin(A−B) = sinA cosB − cosA sinB    …(2)",
+"",
+"(1) + (2)：",
+"sin(A+B) + sin(A−B) = 2 sinA cosB",
+"",
+"令 A+B = α，A−B = β，则 A = (α+β)/2，B = (α−β)/2，",
+"代入：",
+"sinα + sinβ = 2 sin((α+β)/2) cos((α−β)/2)        ∎",
+"",
+"(1) − (2)：",
+"sinα − sinβ = 2 cos((α+β)/2) sin((α−β)/2)",
+"",
+"对 cos 的加角公式做同样的加减：",
+"cosα + cosβ = 2 cos((α+β)/2) cos((α−β)/2)",
+"cosα − cosβ = −2 sin((α+β)/2) sin((α−β)/2)",
+"",
+"例：sin75° + sin15° = 2 sin45° cos30° = √6/2 ≈ 1.2247",
+"验算：0.9659 + 0.2588 = 1.2247 ✓"
+] },
+
+{ from:0.2222, tier:'延伸', star:3, title:'积化和差：和差化积的反向操作',
+  lines:[
+"还是那两式和角公式：",
+"sin(A+B) = sinA cosB + cosA sinB    …(1)",
+"sin(A−B) = sinA cosB − cosA sinB    …(2)",
+"",
+"(1) + (2) 再除以 2：",
+"sinA cosB = ½[sin(A+B) + sin(A−B)]        ∎",
+"",
+"(1) − (2) 再除以 2：",
+"cosA sinB = ½[sin(A+B) − sin(A−B)]",
+"",
+"对 cos 的加角公式做同样处理：",
+"cos(A+B) = cosA cosB − sinA sinB",
+"cos(A−B) = cosA cosB + sinA sinB",
+"",
+"相加除 2：cosA cosB = ½[cos(A+B) + cos(A−B)]",
+"相减除 2：sinA sinB = −½[cos(A+B) − cos(A−B)]",
+"",
+"用途：把乘积拆成和，积分就好做了。",
+"例：∫ sin3x cos2x dx",
+"= ½∫[sin5x + sin x]dx",
+"= −(cos5x)/10 − (cos x)/2 + C"
+] },
+
+{ from:0.2778, tier:'延伸', star:3, title:'绝对值不等式：|x−a| + |x−b| 的最小值',
+  lines:[
+"先说单个：|x| 表示数轴上 x 到原点的距离，",
+"所以 |x − a| 就是 x 到点 a 的距离。",
+"",
+"那么 |x−a| + |x−b| 就是 x 到 a、b 两点距离之和。",
+"",
+"按数轴分三段看（设 a < b）：",
+"x ≤ a    ：和 = (a−x) + (b−x) = a+b−2x ≥ b−a",
+"a ≤ x ≤ b：和 = (x−a) + (b−x) = b−a    （恒定！）",
+"x ≥ b    ：和 = (x−a) + (x−b) = 2x−a−b ≥ b−a",
+"",
+"所以最小值是 b − a，且在整段 [a,b] 上同时取到。",
+"",
+"写成不等式：",
+"|x−a| + |x−b| ≥ |a−b|        ∎",
+"",
+"这是三角不等式 |u| + |v| ≥ |u+v| 的特例。",
+"",
+"几何意义：把 x 放在 a、b 之间时总路程最短；",
+"放到外面，每一步都要多走一个来回。"
+] },
+
+{ from:0.3333, tier:'延伸', star:3, title:'空间向量求二面角',
+  lines:[
+"二面角是两张平面所成的角。",
+"设两平面 α、β 的法向量分别为 n₁、n₂。",
+"",
+"法向量垂直于面内一切向量，",
+"所以两平面的夹角 = 法向量夹角或其补角：",
+"",
+"cos⟨α,β⟩ = |n₁·n₂| / (|n₁||n₂|)",
+"",
+"取绝对值，因为二面角规定取锐角或直角。",
+"",
+"写开：n₁=(a₁,b₁,c₁)，n₂=(a₂,b₂,c₂)",
+"cos = |a₁a₂ + b₁b₂ + c₁c₂|",
+"      / (√(a₁²+b₁²+c₁²)·√(a₂²+b₂²+c₂²))",
+"",
+"例：正方体棱长 1，求面 AB₁C 与底面的二面角",
+"设 A(0,0,0) B(1,0,0) D(0,1,0) A₁(0,0,1)",
+"底面法向量 n₁ = (0,0,1)",
+"AB₁=(1,0,1)，AC=(1,1,0)",
+"n₂ = AB₁ × AC = (0·0−1·1, 1·1−1·0, 1·1−0·1) = (−1, 1, 1)",
+"cos = |1| / (1·√3) = 1/√3",
+"二面角 = arccos(1/√3) ≈ 54.7°"
+] },
+
+{ from:0.3889, tier:'延伸', star:4, title:'抛物线焦点弦：与斜率无关的两个常数',
+  lines:[
+"抛物线 y² = 2px，焦点 F(p/2, 0)。",
+"",
+"设过 F 的直线交抛物线于 A(x₁,y₁)、B(x₂,y₂)。",
+"",
+"把直线写成 x = my + p/2（这样不会漏掉竖直情况），",
+"代入 y² = 2px：",
+"y² = 2p(my + p/2) = 2pmy + p²",
+"y² − 2pmy − p² = 0",
+"",
+"由韦达定理：",
+"y₁ + y₂ = 2pm",
+"y₁ y₂ = −p²              ← 与 m 完全无关",
+"",
+"再看 x：x₁ = y₁²/(2p)，x₂ = y₂²/(2p)，",
+"x₁x₂ = (y₁y₂)²/(4p²) = p⁴/(4p²) = p²/4        ∎",
+"",
+"弦长：|AB| = x₁ + x₂ + p",
+"（抛物线上的点到焦点距离 = 到准线距离，",
+"|AF| = x₁ + p/2，|BF| = x₂ + p/2，相加即得）",
+"",
+"结论：焦点弦两端的 y 乘积恒为 −p²、x 乘积恒为 p²/4，",
+"不管你怎么转这条直线。"
+] },
+
+{ from:0.4444, tier:'延伸', star:4, title:'椭圆的点差法：中点弦斜率一步出',
+  lines:[
+"椭圆 x²/a² + y²/b² = 1，一条弦 AB 的中点是 M(x₀,y₀)，",
+"求弦 AB 的斜率 k。",
+"",
+"设 A(x₁,y₁)、B(x₂,y₂)，两点都在椭圆上：",
+"x₁²/a² + y₁²/b² = 1",
+"x₂²/a² + y₂²/b² = 1",
+"",
+"两式相减：",
+"(x₁²−x₂²)/a² + (y₁²−y₂²)/b² = 0",
+"",
+"平方差分解：",
+"(x₁+x₂)(x₁−x₂)/a² + (y₁+y₂)(y₁−y₂)/b² = 0",
+"",
+"代入中点条件 x₁+x₂ = 2x₀，y₁+y₂ = 2y₀：",
+"2x₀(x₁−x₂)/a² + 2y₀(y₁−y₂)/b² = 0",
+"",
+"而 k = (y₁−y₂)/(x₁−x₂)，于是：",
+"x₀/a² + y₀·k/b² = 0",
+"",
+"k = −b²x₀ / (a²y₀)        ∎",
+"",
+"注意：这是「中点弦」专属结论，弦与中点必须一一对应。"
+] },
+
+{ from:0.5000, tier:'延伸', star:4, title:'圆锥曲线统一定义：只用离心率 e 说话',
+  lines:[
+"椭圆、抛物线、双曲线，课本里是三个定义。",
+"但它们有一个统一说法：",
+"",
+"到定点 F（焦点）的距离，与到定直线 l（准线）的距离之比，",
+"恒等于常数 e（离心率）：",
+"",
+"|PF| / d(P, l) = e",
+"",
+"e 的取值决定曲线种类：",
+"0 < e < 1  →  椭圆",
+"e = 1      →  抛物线",
+"e > 1      →  双曲线",
+"",
+"验证抛物线：取 F(p/2, 0)，准线 x = −p/2，e = 1",
+"√[(x−p/2)² + y²] = |x + p/2|",
+"两边平方：",
+"x² − px + p²/4 + y² = x² + px + p²/4",
+"y² = 2px        ∎",
+"",
+"椭圆与双曲线只是把 e 换成各自的 c/a，推导同法。"
+] },
+
+{ from:0.5556, tier:'延伸', star:3, title:'双曲线的渐近线是怎么来的',
+  lines:[
+"双曲线：x²/a² − y²/b² = 1",
+"",
+"当 |x| 很大时，等号右边的 1 相对可以忽略：",
+"x²/a² ≈ y²/b²",
+"所以 y ≈ ±(b/a)x",
+"",
+"严格写：两边同除以 x²：",
+"1/a² − y²/(b²x²) = 1/x²",
+"移项：",
+"y²/x² = b²/a² − b²/x²",
+"",
+"令 x → ∞，第二项归零：",
+"y²/x² → b²/a²   ⟹   y/x → ±b/a        ∎",
+"",
+"直线 y = ±(b/a)x 就是渐近线。",
+"两个分支永远够不到，但无限接近。",
+"",
+"例：x²/9 − y²/16 = 1",
+"a = 3，b = 4，渐近线 y = ±(4/3)x"
+] },
+
+{ from:0.6111, tier:'延伸', star:4, title:'数列不动点法：aₙ₊₁ = p aₙ + q 的通项',
+  lines:[
+"这是一阶线性递推。先找它的不动点：",
+"令 x = p x + q，解得",
+"x* = q/(1−p)        （p ≠ 1）",
+"",
+"把递推式两边减去 x*：",
+"aₙ₊₁ − x* = p aₙ + q − x*",
+"",
+"因为 x* = p x* + q，所以 q = x* − p x*，代入：",
+"aₙ₊₁ − x* = p aₙ + x* − p x* − x*",
+"          = p(aₙ − x*)",
+"",
+"于是 bₙ = aₙ − x* 满足",
+"bₙ₊₁ = p bₙ",
+"",
+"这是等比数列：bₙ = b₁ pⁿ⁻¹，即",
+"aₙ = x* + (a₁ − x*) pⁿ⁻¹        ∎",
+"",
+"例：a₁ = 1，aₙ₊₁ = 2aₙ + 3",
+"x* = 3/(1−2) = −3",
+"aₙ = −3 + (1+3)·2ⁿ⁻¹ = 2ⁿ⁺¹ − 3",
+"验：a₂ = 2·1+3 = 5，公式给 8−3 = 5 ✓",
+"",
+"关键：减去不动点，把非齐次递推变成齐次等比。"
+] },
+
+{ from:0.6667, tier:'延伸', star:3, title:'隔板法：相同小球怎么分',
+  lines:[
+"问题：n 个相同的小球分给 m 个不同的人，每人至少 1 个。",
+"",
+"把 n 个球排成一排：○ ○ ○ … ○",
+"相邻两球之间有 n−1 个空档。",
+"插入 m−1 块隔板，就把球隔成 m 堆。",
+"",
+"从 n−1 个空档里选 m−1 个插板：",
+"C(n−1, m−1)",
+"",
+"例：10 个球给 4 人，每人至少 1 个",
+"C(9, 3) = 84 种",
+"",
+"【允许有人拿 0 个时】",
+"先虚拟地给每人发 1 个，问题变成 n+m 个球、每人至少 1 个：",
+"C(n+m−1, m−1)",
+"",
+"例：10 个球给 4 人，允许空手",
+"C(13, 3) = 286 种",
+"",
+"关键前提：球必须「相同」。球若不同就转成排列组合问题。"
+] },
+
+{ from:0.7222, tier:'延伸', star:4, title:'均匀分组：为什么要除以 3!',
+  lines:[
+"问题：6 个人分成 3 组、每组 2 人，有几种分法？",
+"",
+"先按顺序挑：",
+"第 1 组：C(6,2) = 15",
+"第 2 组：C(4,2) = 6",
+"第 3 组：C(2,2) = 1",
+"连乘：15 × 6 × 1 = 90",
+"",
+"但 90 是错的。因为「组」没有编号，同一分组被数了 3! 次。",
+"",
+"比如分组 {AB}{CD}{EF}，在 90 这个数法里被算成：",
+"{AB}{CD}{EF}   {AB}{EF}{CD}   {CD}{AB}{EF}",
+"{CD}{EF}{AB}   {EF}{AB}{CD}   {EF}{CD}{AB}",
+"一共 3! = 6 次，其实是同一件事。",
+"",
+"所以正确答案：",
+"C(6,2)C(4,2)C(2,2) / 3! = 90/6 = 15        ∎",
+"",
+"规律：均匀分组（每组人数相同）要除以组数的阶乘；",
+"不均匀分组（如 3,2,1）不用除 —— 人数已经把组区分开了。"
+] },
+
+{ from:0.7778, tier:'延伸', star:4, title:'有放回与无放回：二项分布 vs 超几何',
+  lines:[
+"【二项分布】n 次独立重复试验，每次成功概率 p，",
+"X 为成功次数：",
+"P(X = k) = C(n,k) pᵏ (1−p)ⁿ⁻ᵏ",
+"",
+"期望：X 是 n 个 0/1 变量之和，每个期望为 p，",
+"由期望的线性性（不需要独立）：",
+"E(X) = np        ∎",
+"",
+"方差：每个 0/1 变量方差 p(1−p)，独立可加：",
+"D(X) = np(1−p)        ∎",
+"",
+"【超几何分布】N 个球含 M 个白球，不放回抽 n 个：",
+"P(X = k) = C(M,k)·C(N−M, n−k) / C(N,n)",
+"",
+"期望同样是 np（p = M/N），但方差更小：",
+"D(X) = np(1−p) · (N−n)/(N−1)",
+"",
+"(N−n)/(N−1) 叫「有限总体校正因子」。",
+"当 N 很大、n 相对很小时它趋于 1，",
+"无放回就近似等于有放回 —— 抽样调查能当独立处理的依据。"
+] },
+
+{ from:0.8333, tier:'延伸', star:4, title:'最小二乘：直线为什么这样拟合',
+  lines:[
+"给定 n 个点 (xᵢ, yᵢ)，要找直线 y = kx + b，",
+"使所有点到直线的竖直距离平方和最小。",
+"",
+"定义误差函数：",
+"Q(k,b) = Σ (yᵢ − k xᵢ − b)²",
+"",
+"对 k、b 求偏导并令其为零：",
+"∂Q/∂b = −2Σ(yᵢ − k xᵢ − b) = 0",
+"∂Q/∂k = −2Σ xᵢ(yᵢ − k xᵢ − b) = 0",
+"",
+"第一式：Σyᵢ = kΣxᵢ + nb，即 ȳ = k x̄ + b，",
+"说明直线必过样本中心点 (x̄, ȳ)。",
+"",
+"第二式整理：",
+"k = Σ(xᵢ−x̄)(yᵢ−ȳ) / Σ(xᵢ−x̄)²",
+"",
+"分母是 x 的离差平方和，分子是协方差的形式，",
+"所以 k = cov(x,y) / var(x)。",
+"",
+"Q 是正定二次型，唯一驻点就是最小值点。"
+] },
+
+{ from:0.8889, tier:'延伸', star:4, title:'切线放缩：eˣ ≥ x + 1 为什么总成立',
+  lines:[
+"设 f(x) = eˣ − x − 1，目标证 f(x) ≥ 0。",
+"",
+"求导：",
+"f′(x) = eˣ − 1",
+"",
+"令 f′(x) = 0，得 x = 0。",
+"",
+"看单调性：",
+"x < 0 时 eˣ < 1，f′ < 0，f 递减",
+"x > 0 时 eˣ > 1，f′ > 0，f 递增",
+"",
+"所以 x = 0 是全局最小值点：",
+"f(0) = e⁰ − 0 − 1 = 0",
+"",
+"最小值都是 0 了，自然有 f(x) ≥ 0：",
+"eˣ ≥ x + 1        ∎",
+"等号仅在 x = 0 处成立。",
+"",
+"几何意义：y = x + 1 是 eˣ 在 x=0 处的切线，",
+"整条曲线都在这条切线上方 —— 所以叫「切线放缩」。",
+"",
+"同法可证：ln x ≤ x − 1（x > 0），等号在 x = 1。",
+"把 x 换成 1/x，还能得到另一侧 ln x ≥ 1 − 1/x。",
+"",
+"这两个不等式是导数压轴题里最常用的工具。"
+] },
+
+{ from:0.9444, tier:'延伸', star:5, title:'抽屉原理：简单但反直觉',
+  lines:[
+"原理：把 n+1 个东西放进 n 个抽屉，",
+"必有一个抽屉至少装了 2 个。",
+"",
+"证明（反证）：假设每个抽屉至多 1 个，",
+"那 n 个抽屉总共最多装 n 个，与 n+1 个矛盾。        ∎",
+"",
+"一般形式：m 个东西放 n 个抽屉，",
+"必有一个抽屉至少装了 ⌈m/n⌉ 个。",
+"",
+"例 1：13 个人中必有 2 人生日在同一个月。",
+"13 个人、12 个月，⌈13/12⌉ = 2",
+"",
+"例 2：任取 5 个整数，必有 2 个之差是 4 的倍数。",
+"按除以 4 的余数分 4 个抽屉，5 个数必有两个同余，",
+"同余则差被 4 整除。",
+"",
+"例 3：平面上任取 5 个整点，",
+"必有 2 个点的中点也是整点。",
+"按 (x mod 2, y mod 2) 分成 4 类，5 点必有两个同类，",
+"同类点坐标和都是偶数，中点即整点。",
+"",
+"要点：抽屉不是现成的，题目的难点在于「造抽屉」。"
+] }
+
+];
+
+const SKY_SHORTS = [
+'复数','棣莫弗定理','极坐标参数方程','和差化积','积化和差','绝对值不等式',
+'空间向量二面角','抛物线焦点弦','椭圆点差法','圆锥曲线统一','双曲线渐近线',
+'数列不动点','隔板法','均匀分组','二项/超几何','最小二乘','切线放缩','抽屉原理'
+];
+const SKY_SHAPES = [
+'circle','helix','ellipse','wave','wave','absval',
+'planes','parabola2d','ellipse','ellipse','hyperbola',
+'spiral','stair','tree','bell','scatter','tangent','field'
+];
+
+const mathTierEl  = document.getElementById('mathTier');
+const mathNoEl    = document.getElementById('mathNo');
+const mathTitleEl = document.getElementById('mathTitle');
+const mathBodyEl  = document.getElementById('mathBody');
+const idxEl       = document.getElementById('idx');
+const idxInnerEl  = document.getElementById('idxInner');
+
+const IDX_ITEM_H = 19;
+let idxItems = [];
+let curMath = -1;
+let curMode = 'sea';
+let idxShift = -1;
+
+function escHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function listOf(mode){ return mode === 'sky' ? SKY_STAGES : MATH_STAGES; }
+function shortsOf(mode){ return mode === 'sky' ? SKY_SHORTS : SHORTS; }
+function shapesOf(mode){ return mode === 'sky' ? SKY_SHAPES : SHAPES; }
+
+function indexAt(list, prog){
+  let idx = 0;
+  for (let i=0;i<list.length;i++){
+    if (prog >= list[i].from) idx = i;
+  }
+  return idx;
+}
+
+// 构建左侧知识点目录（从上往下排开）
+function buildIndex(mode){
+  const list = listOf(mode);
+  const shorts = shortsOf(mode);
+  let html = '';
+  for (let i=0;i<list.length;i++){
+    html += '<div class="idxItem"><b>' + String(i+1).padStart(2,'0') +
+            '</b><span>' + escHtml(shorts[i] || '') + '</span></div>';
+  }
+  idxInnerEl.innerHTML = html;
+  idxItems = Array.prototype.slice.call(idxInnerEl.children);
+  idxShift = -1;
+  idxInnerEl.style.transform = 'translateY(0px)';
+}
+
+// 让当前知识点滚动到左栏中部
+function scrollIndexTo(i, count){
+  const listH = idxEl.clientHeight || 420;
+  let y = i * IDX_ITEM_H + IDX_ITEM_H / 2 - listH / 2;
+  const maxShift = Math.max(0, count * IDX_ITEM_H - listH);
+  y = clamp(y, 0, maxShift);
+  if (Math.abs(y - idxShift) < 0.5) return;
+  idxShift = y;
+  idxInnerEl.style.transform = 'translateY(' + (-y).toFixed(1) + 'px)';
+}
+
+function updateMath(mode, prog){
+  const list = listOf(mode);
+  const i = indexAt(list, prog);
+  const modeChanged = (mode !== curMode);
+  if (!modeChanged && i === curMath) return;
+
+  const prev = curMath;
+  curMode = mode;
+  curMath = i;
+
+  if (modeChanged) buildIndex(mode);
+
+  if (prev >= 0 && idxItems[prev]) idxItems[prev].classList.remove('on');
+  if (idxItems[i]) idxItems[i].classList.add('on');
+  scrollIndexTo(i, list.length);
+
+  const st = list[i];
+
+  curShape = shapesOf(mode)[i] || 'parab';
+
+  mathTierEl.innerHTML = st.tier + '<span class="star">' +
+    '★'.repeat(st.star) + '</span>';
+  mathNoEl.textContent = String(i+1).padStart(2,'0') + ' / ' + list.length;
+  mathTitleEl.textContent = st.title;
+
+  let html = '';
+  for (let k=0;k<st.lines.length;k++){
+    const raw = st.lines[k];
+    const cls = raw.indexOf('∎') >= 0 ? 'ln res' : 'ln';
+    const body = raw === '' ? '&nbsp;' : escHtml(raw);
+    html += '<span class="' + cls + '" style="animation-delay:' +
+            (k * 0.014).toFixed(3) + 's">' + body + '</span>';
+  }
+  mathBodyEl.innerHTML = html;
+}
+
+/* ── 点击跳转：左栏知识点 / 右侧标尺 ── */
+function jumpTo(mode, prog){
+  forcedDepth = null;
+  forcedAlt = null;
+  const Hh = window.innerHeight;
+  const p = clamp(prog, 0, 1);
+  let y;
+  if (mode === 'sky'){
+    y = (SKY_VH - p * SKY_VH) * Hh;
+    rawSmooth = -p * SKY_VH * Hh;
+  } else {
+    y = (SKY_VH + p * SEA_VH) * Hh;
+    rawSmooth = p * SEA_VH * Hh;
+  }
+  window.scrollTo({ top: y, behavior: 'smooth' });
+}
+
+idxInnerEl.addEventListener('click', function(ev){
+  const item = ev.target && ev.target.closest ? ev.target.closest('.idxItem') : null;
+  if (!item) return;
+  const i = Array.prototype.indexOf.call(idxItems, item);
+  if (i < 0) return;
+  const list = listOf(curMode);
+  if (!list[i]) return;
+  jumpTo(curMode, list[i].from);
+});
+
+document.getElementById('gauge').addEventListener('click', function(ev){
+  const r = this.getBoundingClientRect();
+  const p = clamp((ev.clientY - r.top) / r.height, 0, 1);
+  jumpTo(curMode, p);
+});
+
+/* ─────────────── 右侧 3D 图解引擎 ─────────────── */
+const viz     = document.getElementById('viz');
+const vctx    = viz.getContext('2d');
+const vizLab  = document.getElementById('vizLabel');
+
+let VW = 0, VH = 0, VCX = 0, VCY = 0, VS = 1;
+let vRotY = 0.72, vRotX = 0.42;
+const V_SPIN = 0.24;
+const CAM_D  = 3.4;
+const FOC    = 1.55;
+
+function resizeViz(){
+  if (!viz) return;
+  const r = viz.getBoundingClientRect();
+  VW = Math.max(1, r.width);
+  VH = Math.max(1, r.height);
+  viz.width  = Math.round(VW * DPR);
+  viz.height = Math.round(VH * DPR);
+  vctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  VCX = VW / 2;
+  VCY = VH / 2;
+  VS  = Math.min(VW, VH) * 0.62;
+}
+
+// 透视投影：绕 Y 旋转 → 绕 X 旋转 → 透视除法
+function proj(x, y, z){
+  const cy = Math.cos(vRotY), sy = Math.sin(vRotY);
+  const x1 =  x * cy + z * sy;
+  const z1 = -x * sy + z * cy;
+  const cx = Math.cos(vRotX), sx = Math.sin(vRotX);
+  const y2 = y * cx - z1 * sx;
+  const z2 = y * sx + z1 * cx;
+  const k  = FOC / (CAM_D + z2 * 0.55);
+  return [VCX + x1 * k * VS, VCY - y2 * k * VS, k];
+}
+
+function vline(a, b, hue, alpha, w){
+  const p = proj(a[0], a[1], a[2]);
+  const q = proj(b[0], b[1], b[2]);
+  const kk = (p[2] + q[2]) * 0.5;
+  const al = alpha * clamp((kk - 0.35) / 0.22, 0.16, 1);
+  if (al <= 0.01) return;
+  vctx.strokeStyle = 'hsla(' + hue + ',98%,76%,' + Math.min(1, al * 1.15).toFixed(3) + ')';
+  vctx.lineWidth = w || 1.2;
+  vctx.beginPath();
+  vctx.moveTo(p[0], p[1]);
+  vctx.lineTo(q[0], q[1]);
+  vctx.stroke();
+}
+
+function vdot(a, hue, alpha, size){
+  const p = proj(a[0], a[1], a[2]);
+  const al = alpha * clamp((p[2] - 0.35) / 0.22, 0.18, 1);
+  if (al <= 0.01) return;
+  vctx.fillStyle = 'hsla(' + hue + ',100%,84%,' + Math.min(1, al * 1.2).toFixed(3) + ')';
+  vctx.beginPath();
+  vctx.arc(p[0], p[1], Math.max(0.6, (size || 2) * (p[2] / 0.52)), 0, TAU);
+  vctx.fill();
+}
+
+// 参数曲面/网格通用
+function grid(fn, N, R, hue, alpha){
+  for (let i=0;i<=N;i++){
+    const u = -R + 2*R*i/N;
+    let prev = null;
+    for (let j=0;j<=N;j++){
+      const v = -R + 2*R*j/N;
+      const p = fn(u, v);
+      if (prev) vline(prev, p, hue, alpha, 1);
+      prev = p;
+    }
+  }
+  for (let j=0;j<=N;j++){
+    const v = -R + 2*R*j/N;
+    let prev = null;
+    for (let i=0;i<=N;i++){
+      const u = -R + 2*R*i/N;
+      const p = fn(u, v);
+      if (prev) vline(prev, p, hue, alpha, 1);
+      prev = p;
+    }
+  }
+}
+
+/* ── 各种几何体 ── */
+
+// 鞍面：(x,y) → z = x²-y²
+function sParab(t, hue){
+  grid(function(u,v){
+    return [u, (u*u - v*v) * 0.52, v];
+  }, 8, 1.08, hue, 0.34);
+  // 沿 x 轴剖出的抛物线 z = x²
+  let prev = null;
+  for (let i=0;i<=48;i++){
+    const x = -1.08 + 2.16*i/48;
+    const p = [x, x*x*0.52, 0];
+    if (prev) vline(prev, p, hue, 0.9, 1.7);
+    prev = p;
+  }
+}
+
+// 勾股定理：直角三角形 + 三个正方形
+function sPyth(t, hue){
+  const a = 0.8, b = 1.15, c = Math.hypot(a, b);
+  const O = [0,0,0], A = [a,0,0], B = [0,b,0];
+  vline(O, A, hue, 0.95, 1.8);
+  vline(O, B, hue, 0.95, 1.8);
+  vline(A, B, hue, 1.0, 2.0);
+  const sq = function(p, q, n){
+    const p2 = [p[0]+n[0], p[1]+n[1], p[2]+n[2]];
+    const q2 = [q[0]+n[0], q[1]+n[1], q[2]+n[2]];
+    vline(p, p2, hue, 0.5, 1);
+    vline(p2, q2, hue, 0.5, 1);
+    vline(q2, q, hue, 0.5, 1);
+    vline(q, p, hue, 0.5, 1);
+  };
+  sq(O, A, [0,-a,0]);
+  sq(O, B, [-b,0,0]);
+  sq(A, B, [-b, a, 0]);
+}
+
+// 数列：阶梯柱体 + 包络
+function sStair(t, hue){
+  const n = 7;
+  for (let i=0;i<n;i++){
+    const h  = 0.16 + i*0.21;
+    const x  = -1.05 + i*0.30;
+    const w  = 0.17;
+    const d  = 0.26;
+    vline([x,-0.85,0], [x,-0.85+h,0], hue, 0.8, 1.5);
+    vline([x+w,-0.85,0], [x+w,-0.85+h,0], hue, 0.6, 1.2);
+    vline([x,-0.85,-d], [x,-0.85+h,-d], hue, 0.45, 1);
+    vline([x,-0.85+h,0], [x+w,-0.85+h,0], hue, 0.95, 1.7);
+    vline([x,-0.85+h,0], [x,-0.85+h,-d], hue, 0.55, 1.1);
+    vline([x+w,-0.85+h,0], [x+w,-0.85+h,-d], hue, 0.55, 1.1);
+    vline([x,-0.85+h,-d], [x+w,-0.85+h,-d], hue, 0.6, 1.1);
+  }
+  let prev = null;
+  for (let i=0;i<=50;i++){
+    const p = i/50;
+    const v = [-1.05 + 1.95*p, -0.68 + 1.75*p*p, 0.3];
+    if (prev) vline(prev, v, hue, 0.5, 1.3);
+    prev = v;
+  }
+}
+
+// 圆与内接正多边形（n 随时间增加）
+function sCircle(t, hue){
+  const R = 1.0;
+  let prev = null;
+  for (let i=0;i<=72;i++){
+    const ang = i/72*TAU;
+    const p = [Math.cos(ang)*R, Math.sin(ang)*R, 0];
+    if (prev) vline(prev, p, hue, 0.8, 1.5);
+    prev = p;
+  }
+  const n = 3 + Math.floor((Math.sin(t*0.55)*0.5 + 0.5) * 17);
+  prev = null;
+  for (let i=0;i<=n;i++){
+    const ang = i/n*TAU;
+    const p = [Math.cos(ang)*R, Math.sin(ang)*R, 0.02];
+    if (prev) vline(prev, p, hue, 0.95, 1.8);
+    prev = p;
+  }
+  vline([0,0,0], [R,0,0], hue, 0.45, 1);
+  vdot([0,0,0], hue, 0.9, 2.4);
+}
+
+// 两个平面 + 交线（消元）
+function sPlanes(t, hue){
+  const S = 1.1;
+  const f1 = function(x){ return 0.5*x; };
+  const f2 = function(x){ return -0.3*x + 0.2; };
+  for (let i=0;i<=6;i++){
+    const x = -S + 2*S*i/6;
+    vline([x, f1(x), -S], [x, f1(x), S], hue, 0.28, 1);
+    vline([x, f2(x), -S], [x, f2(x), S], hue, 0.28, 1);
+  }
+  for (let i=0;i<=4;i++){
+    const z = -S + 2*S*i/4;
+    vline([-S, f1(-S), z], [S, f1(S), z], hue, 0.22, 1);
+    vline([-S, f2(-S), z], [S, f2(S), z], hue, 0.22, 1);
+  }
+  vline([0.25, 0.125, -S], [0.25, 0.125, S], hue, 1.0, 2.2);
+}
+
+// 对数螺旋
+function sSpiral(t, hue){
+  let prev = null;
+  for (let i=0;i<=140;i++){
+    const p  = i/140;
+    const th = p * Math.PI * 3.4;
+    const r  = 0.07 * Math.exp(0.52*th) * 0.62;
+    const v  = [Math.cos(th)*r, Math.sin(th)*r, -0.95 + p*1.9];
+    if (prev) vline(prev, v, hue, 0.78, 1.5);
+    prev = v;
+  }
+  for (let i=0;i<=24;i++){
+    const p = i/24;
+    vdot([0, 0, -0.95 + p*1.9], hue, 0.25, 1.2);
+  }
+}
+
+// 球 + 圆柱 + 圆锥（祖暅原理）
+function sSphere(t, hue){
+  for (let k=1;k<6;k++){
+    const ph = k/6*Math.PI;
+    let prev = null;
+    for (let i=0;i<=48;i++){
+      const th = i/48*TAU;
+      const v = [Math.sin(ph)*Math.cos(th), Math.cos(ph), Math.sin(ph)*Math.sin(th)];
+      if (prev) vline(prev, v, hue, 0.32, 1.1);
+      prev = v;
+    }
+  }
+  for (let s=-1;s<=1;s+=2){
+    let prev = null;
+    for (let j=0;j<=32;j++){
+      const a = j/32*TAU;
+      const v = [Math.cos(a)*1.02, s, Math.sin(a)*1.02];
+      if (prev) vline(prev, v, hue, 0.36, 1.1);
+      prev = v;
+    }
+  }
+  for (let j=0;j<8;j++){
+    const a = j/8*TAU;
+    vline([Math.cos(a)*1.02,-1,Math.sin(a)*1.02], [Math.cos(a)*1.02,1,Math.sin(a)*1.02], hue, 0.2, 1);
+    vline([0,0,0], [Math.cos(a)*1.02,1,Math.sin(a)*1.02], hue, 0.46, 1.2);
+  }
+}
+
+// 递归分支树
+function sTree(t, hue){
+  const br = function(p, d, len, depth){
+    const q = [p[0]+d[0]*len, p[1]+d[1]*len, p[2]+d[2]*len];
+    vline(p, q, hue, 0.22 + depth*0.2, 1.7 - depth*0.28);
+    if (depth >= 3 || len < 0.09) return;
+    const sw = Math.sin(t*0.55 + depth*1.3) * 0.3;
+    br(q, [d[0]*0.58 - d[1]*0.52 + sw*0.25, d[1]*0.58 + d[0]*0.52, d[2]*0.75], len*0.73, depth+1);
+    br(q, [d[0]*0.58 + d[1]*0.52 - sw*0.25, d[1]*0.58 - d[0]*0.52, d[2]*0.75], len*0.73, depth+1);
+  };
+  br([0,-0.95,0], [0,1,0], 0.76, 0);
+}
+
+// 曲线 + 切线（导数）
+function sTangent(t, hue){
+  const f  = function(x){ return 0.5*Math.sin(x*2.1) + 0.16*x*x - 0.28; };
+  const df = function(x){ return 0.5*2.1*Math.cos(x*2.1) + 0.32*x; };
+  let prev = null;
+  for (let i=0;i<=90;i++){
+    const x = -1.25 + 2.5*i/90;
+    const v = [x, f(x), 0];
+    if (prev) vline(prev, v, hue, 0.82, 1.6);
+    prev = v;
+  }
+  const ph = (Math.sin(t*0.42)*0.5 + 0.5);
+  const x0 = -1.25 + 2.5*ph;
+  const y0 = f(x0), k = df(x0);
+  vline([x0-0.55, y0-k*0.55, 0], [x0+0.55, y0+k*0.55, 0], hue, 1.0, 2.0);
+  vdot([x0, y0, 0], hue, 1.0, 3.2);
+}
+
+// 高斯钟形曲面
+function sBell(t, hue){
+  grid(function(u,v){
+    return [u*1.15, Math.exp(-(u*u + v*v)*1.15)*1.05 - 0.45, v*1.15];
+  }, 8, 1.0, hue, 0.36);
+}
+
+// 欧拉螺旋 e^(ix)
+function sHelix(t, hue){
+  let prev = null;
+  for (let i=0;i<=260;i++){
+    const p = i/260;
+    const a = p * Math.PI * 4;
+    const v = [Math.cos(a)*0.72, (p-0.5)*1.75, Math.sin(a)*0.72];
+    if (prev) vline(prev, v, hue, 0.75, 1.5);
+    prev = v;
+  }
+  vline([0,-0.92,0], [0,0.92,0], hue, 0.3, 1);
+  let pr = null;
+  for (let i=0;i<=120;i++){
+    const p = i/120;
+    const a = p * Math.PI * 4;
+    const v = [Math.cos(a)*0.72, (p-0.5)*1.75, -0.92];
+    if (pr) vline(pr, v, hue, 0.22, 1);
+    pr = v;
+  }
+}
+
+// 复围道 + 极点
+function sContour(t, hue){
+  let prev = null;
+  for (let i=0;i<=64;i++){
+    const a = i/64*Math.PI;
+    const v = [Math.cos(a)*1.15, Math.sin(a)*1.15, 0];
+    if (prev) vline(prev, v, hue, 0.9, 1.7);
+    prev = v;
+  }
+  vline([-1.15,0,0], [1.15,0,0], hue, 0.9, 1.7);
+  prev = null;
+  for (let i=0;i<=24;i++){
+    const a = i/24*TAU;
+    const v = [Math.cos(a)*0.18, 0.62 + Math.sin(a)*0.18, 0];
+    if (prev) vline(prev, v, hue, 0.7, 1.3);
+    prev = v;
+  }
+  vdot([0, 0.62, 0], hue, 1.0, 4);
+  vdot([1.15, 0, 0], hue, 0.9, 3);
+}
+
+// 向量场（旋涡）
+function sField(t, hue){
+  const N = 5, R = 1.05;
+  for (let i=0;i<=N;i++){
+    for (let j=0;j<=N;j++){
+      const x = -R + 2*R*i/N;
+      const y = -R + 2*R*j/N;
+      const d = Math.hypot(x,y) || 0.001;
+      const vx = -y/d*0.17 - x*0.055;
+      const vy =  x/d*0.17 - y*0.055;
+      vline([x,y,0], [x+vx, y+vy, 0], hue, 0.62, 1.15);
+      vdot([x,y,0], hue, 0.22, 1.5);
+    }
+  }
+}
+
+// ζ 函数：临界带 + 临界线 + 非平凡零点
+function sZeta(t, hue){
+  for (let i=0;i<=6;i++){
+    const y = -1.25 + 2.5*i/6;
+    vline([0, y, -0.75], [0, y, 0.75], hue, 0.2, 1);
+    vline([1, y, -0.75], [1, y, 0.75], hue, 0.2, 1);
+  }
+  vline([0,-1.25,-0.75], [0,-1.25,0.75], hue, 0.3, 1);
+  vline([0, 1.25,-0.75], [0, 1.25,0.75], hue, 0.3, 1);
+  vline([-0.45,0,0], [1.45,0,0], hue, 0.35, 1.1);
+  vline([0.5,-1.3,0], [0.5,1.3,0], hue, 0.95, 2.1);
+  const gz = [14.1347, 21.0220, 25.0109, 30.4249, 32.9351];
+  for (let i=0;i<gz.length;i++){
+    const yy = gz[i] / 36;
+    vdot([0.5,  yy, 0], hue, 1.0, 3.4);
+    vdot([0.5, -yy, 0], hue, 1.0, 3.4);
+  }
+}
+
+// 环面
+function sTorus(t, hue){
+  const Rr = 0.82, rr = 0.33;
+  for (let i=0;i<12;i++){
+    const u = i/12*TAU;
+    let prev = null;
+    for (let j=0;j<=32;j++){
+      const v = j/32*TAU;
+      const p = [
+        (Rr + rr*Math.cos(v)) * Math.cos(u),
+        rr * Math.sin(v),
+        (Rr + rr*Math.cos(v)) * Math.sin(u)
+      ];
+      if (prev) vline(prev, p, hue, 0.42, 1);
+      prev = p;
+    }
+  }
+  for (let i=0;i<5;i++){
+    const v = i/5*TAU;
+    let prev = null;
+    for (let j=0;j<=32;j++){
+      const u = j/32*TAU;
+      const p = [
+        (Rr + rr*Math.cos(v)) * Math.cos(u),
+        rr * Math.sin(v),
+        (Rr + rr*Math.cos(v)) * Math.sin(u)
+      ];
+      if (prev) vline(prev, p, hue, 0.3, 1);
+      prev = p;
+    }
+  }
+}
+
+// 正弦波
+function sWave(t, hue){
+  let prev = null;
+  for (let i=0;i<=170;i++){
+    const p = i/170;
+    const x = (p - 0.5) * 2.5;
+    const y = Math.sin(x * 3.1) * 0.62;
+    const v = [x, y, (p - 0.5) * 0.42];
+    if (prev) vline(prev, v, hue, 0.88, 1.7);
+    prev = v;
+  }
+  vline([-1.3, 0, 0], [1.3, 0, 0], hue, 0.28, 1.1);
+  vline([-1.3, 0.62, 0], [1.3, 0.62, 0], hue, 0.14, 1);
+  vline([-1.3,-0.62, 0], [1.3,-0.62, 0], hue, 0.14, 1);
+}
+
+// 椭圆：两焦点 + 动点到焦点连线
+function sEllipse(t, hue){
+  const a = 1.12, b = 0.74, c = Math.sqrt(a*a - b*b);
+  let prev = null;
+  for (let i=0;i<=84;i++){
+    const th = i/84*TAU;
+    const v = [Math.cos(th)*a, Math.sin(th)*b, 0];
+    if (prev) vline(prev, v, hue, 0.92, 1.7);
+    prev = v;
+  }
+  vline([-a,0,0], [a,0,0], hue, 0.2, 1);
+  vline([0,-b,0], [0,b,0], hue, 0.2, 1);
+  const th2 = TAU * (Math.sin(t*0.3)*0.5 + 0.5);
+  const P = [Math.cos(th2)*a, Math.sin(th2)*b, 0];
+  vline(P, [-c,0,0], hue, 0.5, 1.2);
+  vline(P, [ c,0,0], hue, 0.5, 1.2);
+  vdot([-c,0,0], hue, 1, 3.4);
+  vdot([ c,0,0], hue, 1, 3.4);
+  vdot(P, hue, 1, 3);
+}
+
+// 双曲线 + 渐近线
+function sHyperbola(t, hue){
+  const a = 0.62, b = 0.82, k = b / a;
+  for (let sgn=-1; sgn<=1; sgn+=2){
+    let prev = null;
+    for (let i=0;i<=64;i++){
+      const y = -1.45 + 2.9*i/64;
+      const x = sgn * a * Math.sqrt(1 + (y*y)/(b*b));
+      const v = [x, y, 0];
+      if (prev) vline(prev, v, hue, 0.88, 1.7);
+      prev = v;
+    }
+  }
+  vline([-1.4, -1.4*k, 0], [1.4, 1.4*k, 0], hue, 0.34, 1.2);
+  vline([-1.4,  1.4*k, 0], [1.4, -1.4*k, 0], hue, 0.34, 1.2);
+  vdot([ a,0,0], hue, 1, 3.2);
+  vdot([-a,0,0], hue, 1, 3.2);
+}
+
+// 散点 + 最小二乘直线 + 残差
+function sScatter(t, hue){
+  let seed = 7;
+  const rr = function(){
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+  const pts = [];
+  for (let i=0;i<16;i++){
+    const x = -1.2 + 2.4 * rr();
+    const y = 0.5 * x + (rr() - 0.5) * 0.72;
+    pts.push([x, y]);
+  }
+  const n = pts.length;
+  let sx=0, sy=0, sxx=0, sxy=0;
+  for (let i=0;i<n;i++){
+    sx += pts[i][0]; sy += pts[i][1];
+    sxx += pts[i][0]*pts[i][0]; sxy += pts[i][0]*pts[i][1];
+  }
+  const k  = (n*sxy - sx*sy) / (n*sxx - sx*sx);
+  const b0 = (sy - k*sx) / n;
+  for (let i=0;i<n;i++){
+    const yf = k*pts[i][0] + b0;
+    vline([pts[i][0], pts[i][1], 0], [pts[i][0], yf, 0], hue, 0.20, 1);
+  }
+  vline([-1.35, k*-1.35+b0, 0], [1.35, k*1.35+b0, 0], hue, 0.98, 1.9);
+  for (let i=0;i<n;i++) vdot([pts[i][0], pts[i][1], 0], hue, 0.92, 2.6);
+}
+
+// 抛物线 y² = 2px + 焦点 + 焦点弦
+function sParabola2d(t, hue){
+  const p = 0.62, f = p / 2, ox = -0.42;
+  let prev = null;
+  for (let i=0;i<=92;i++){
+    const y = -1.55 + 3.1*i/92;
+    const x = (y*y)/(2*p) + ox;
+    const v = [x, y, 0];
+    if (prev) vline(prev, v, hue, 0.88, 1.7);
+    prev = v;
+  }
+  vline([-f+ox, -1.5, 0], [-f+ox, 1.5, 0], hue, 0.30, 1.2);
+  vdot([f+ox, 0, 0], hue, 1, 3.4);
+
+  const th = Math.PI * 2 * (Math.sin(t*0.26)*0.5 + 0.5);
+  const c = Math.cos(th), sn = Math.sin(th);
+  if (Math.abs(sn) > 0.14){
+    const u1 = p * (c - 1) / (sn*sn);
+    const u2 = p * (c + 1) / (sn*sn);
+    const A = [f + u1*c + ox, u1*sn, 0];
+    const B = [f + u2*c + ox, u2*sn, 0];
+    vline(A, [f+ox, 0, 0], hue, 0.22, 1);
+    vline(B, [f+ox, 0, 0], hue, 0.22, 1);
+    vline(A, B, hue, 1.0, 1.9);
+    vdot(A, hue, 1, 3);
+    vdot(B, hue, 1, 3);
+  }
+}
+
+// 三棱柱切成三个等体积三棱锥
+function sPyramid(t, hue){
+  const A  = [-0.85,-0.70, 0.52], B  = [ 0.85,-0.70, 0.52], C  = [0,-0.70,-0.54];
+  const A1 = [-0.85, 0.70, 0.52], B1 = [ 0.85, 0.70, 0.52], C1 = [0, 0.70,-0.54];
+  vline(A,B,hue,0.70,1.4);  vline(B,C,hue,0.70,1.4);  vline(C,A,hue,0.70,1.4);
+  vline(A1,B1,hue,0.70,1.4); vline(B1,C1,hue,0.70,1.4); vline(C1,A1,hue,0.70,1.4);
+  vline(A,A1,hue,0.42,1.1); vline(B,B1,hue,0.42,1.1); vline(C,C1,hue,0.42,1.1);
+  // 分割面 A₁BC 与 A₁B₁C
+  vline(A1,B,hue,0.95,1.8);
+  vline(A1,C,hue,0.95,1.8);
+  vline(A1,B1,hue,0.62,1.3);
+  vline(A1,C1,hue,0.62,1.3);
+  vline(B1,C,hue,0.95,1.8);
+  vdot(A1,hue,1,3.2);
+}
+
+// |x−a| + |x−b|：折线 + 最小值平台 + 数轴投影
+function sAbsVal(t, hue){
+  const a = -0.52, b = 0.52, axY = 0.18;
+  const f = function(x){ return Math.abs(x - a) + Math.abs(x - b); };
+  let prev = null;
+  for (let i=0;i<=110;i++){
+    const x = -1.4 + 2.8*i/110;
+    const v = [x, f(x)*0.45, 0];
+    if (prev) vline(prev, v, hue, 0.92, 1.8);
+    prev = v;
+  }
+  vline([-1.4, axY, 0], [1.4, axY, 0], hue, 0.32, 1.1);
+  vline([a, axY, 0], [a, f(a)*0.45, 0], hue, 0.24, 1);
+  vline([b, axY, 0], [b, f(b)*0.45, 0], hue, 0.24, 1);
+  vline([a, f(a)*0.45, 0], [b, f(b)*0.45, 0], hue, 0.88, 2.0);
+  vdot([a, axY, 0], hue, 1, 3.2);
+  vdot([b, axY, 0], hue, 1, 3.2);
+}
+
+// 指数增长曲线 + 翻倍采样点
+function sGrowth(t, hue){
+  const X0 = -1.25, X1 = 1.15;
+  const g = function(x){ return (Math.pow(2, (x - X0) * 0.95) - 1) * 0.42 - 0.90; };
+  let prev = null;
+  for (let i=0;i<=90;i++){
+    const x = X0 + (X1 - X0) * i / 90;
+    const v = [x, g(x), 0];
+    if (prev) vline(prev, v, hue, 0.86, 1.6);
+    prev = v;
+  }
+  vline([X0, -0.90, 0], [X1, -0.90, 0], hue, 0.30, 1.1);
+  for (let k=0;k<=6;k++){
+    const x = X0 + (X1 - X0) * k / 6;
+    vline([x, -0.90, 0], [x, g(x), 0], hue, 0.22, 1);
+    vdot([x, g(x), 0], hue, 0.95, 2.8);
+  }
+}
+
+// 两条对数曲线：换底 = 只差一个常数倍
+function sLogScale(t, hue){
+  const X0 = 0.5, X1 = 3.0;
+  let p1 = null;
+  for (let i=0;i<=90;i++){
+    const x = X0 + (X1 - X0) * i / 90;
+    const v = [x - 1.5, Math.log(x) * 0.62, 0];
+    if (p1) vline(p1, v, hue, 0.92, 1.7);
+    p1 = v;
+  }
+  let p2 = null;
+  for (let i=0;i<=90;i++){
+    const x = X0 + (X1 - X0) * i / 90;
+    const v = [x - 1.5, Math.log(x) / Math.LN2 * 0.30, 0.45];
+    if (p2) vline(p2, v, hue, 0.62, 1.3);
+    p2 = v;
+  }
+  vline([-1.05, 0, 0], [1.55, 0, 0], hue, 0.28, 1);
+  for (let k=0;k<4;k++){
+    const x = 1.0 + k * 0.6;
+    if (x > X1) break;
+    vline([x - 1.5, Math.log(x) * 0.62, 0],
+          [x - 1.5, Math.log(x) / Math.LN2 * 0.30, 0.45], hue, 0.32, 1.1);
+  }
+}
+
+// 概率分布柱 + 均值竖线（期望=重心，方差=宽度）
+function sHistogram(t, hue){
+  const ps = [0.05, 0.10, 0.16, 0.19, 0.19, 0.16, 0.10, 0.05];
+  const n = ps.length, base = -0.95, d = 0.30;
+  let sum = 0, mean = 0;
+  for (let i=0;i<n;i++){
+    const x = -1.15 + 2.3 * i / (n - 1);
+    const h = ps[i] * 7.2;
+    vline([x, base, 0], [x, base + h, 0], hue, 0.52, 1.2);
+    vline([x, base, -d], [x, base + h, -d], hue, 0.34, 1);
+    vline([x, base + h, 0], [x, base + h, -d], hue, 0.78, 1.5);
+    vline([x, base, 0], [x, base, -d], hue, 0.26, 1);
+    sum += ps[i]; mean += x * ps[i];
+  }
+  mean /= sum;
+  vline([-1.35, base, 0], [1.35, base, 0], hue, 0.30, 1.1);
+  vline([mean, base, 0.16], [mean, 1.15, 0.16], hue, 1.0, 2.1);
+  vdot([mean, base, 0.16], hue, 1, 3);
+}
+
+// 分部积分：矩形 uv 被曲线切成两块面积
+function sByParts(t, hue){
+  const uMax = 1.15, X0 = -0.85;
+  const f = function(x){ return 0.95 * Math.pow(Math.max(x, 0) / uMax, 0.62); };
+  const u = 1.05, v = f(u);
+  let prev = null;
+  for (let i=0;i<=90;i++){
+    const x = uMax * i / 90;
+    const p = [x + X0, f(x) - 0.85, 0];
+    if (prev) vline(prev, p, hue, 0.9, 1.7);
+    prev = p;
+  }
+  vline([X0, -0.85, 0], [X0 + uMax + 0.25, -0.85, 0], hue, 0.32, 1.1);
+  vline([X0, -0.85, 0], [X0, 0.38, 0], hue, 0.32, 1.1);
+  const X = X0 + u, Y = v - 0.85;
+  vline([X, -0.85, 0], [X, Y, 0], hue, 0.62, 1.4);
+  vline([X, Y, 0], [X0, Y, 0], hue, 0.62, 1.4);
+  vdot([X0, Y, 0], hue, 0.9, 2.4);
+  for (let i=1;i<9;i++){
+    const x = u * i / 9;
+    vline([x + X0, -0.85, 0], [x + X0, f(x) - 0.85, 0], hue, 0.13, 1);
+  }
+  for (let j=1;j<7;j++){
+    const y = Y * j / 7;
+    vline([X0, y, 0], [X, y, 0], hue, 0.11, 1);
+  }
+}
+
+// 单调递增函数序列 f1 ≤ f2 ≤ f3 ≤ f4
+function sMonotone(t, hue){
+  for (let k=0;k<4;k++){
+    const lift = k * 0.30 - 0.80;
+    const dep  = k * 0.18;
+    let prev = null;
+    for (let i=0;i<=9;i++){
+      const x = -1.25 + 2.5 * i / 9;
+      const y = lift + i * 0.075;
+      const p = [x, y, dep];
+      if (prev) vline(prev, p, hue, 0.30 + k * 0.17, 1.1 + k * 0.22);
+      prev = p;
+    }
+  }
+  vline([-1.3, -0.85, 0], [1.3, -0.85, 0], hue, 0.28, 1.1);
+}
+
+// 哥德巴赫：一对一对镜像的素数，弧线连向同一个偶数
+function sPairs(t, hue){
+  vline([-1.4, 0, 0], [1.4, 0, 0], hue, 0.32, 1.1);
+  const sums = [0.10, 0.38, 0.66, 0.94];
+  for (let k=0;k<sums.length;k++){
+    const c = sums[k];
+    const d = 0.24 + k * 0.13;
+    const ax = c - d, bx = c + d;
+    let prev = null;
+    for (let i=0;i<=18;i++){
+      const p = i / 18;
+      const x = ax + (bx - ax) * p;
+      const y = Math.sin(p * Math.PI) * (0.30 + k * 0.05);
+      const v = [x, y, 0];
+      if (prev) vline(prev, v, hue, 0.55, 1.2);
+      prev = v;
+    }
+    vdot([ax, 0, 0], hue, 1, 3);
+    vdot([bx, 0, 0], hue, 1, 3);
+    vdot([c, 0, 0], hue, 0.45, 2.2);
+  }
+}
+
+// 连续统假设：可数层 vs 连续统层，中间留问号
+function sLayers(t, hue){
+  for (let i=0;i<9;i++){
+    const x = -1.2 + 2.4 * i / 8;
+    vdot([x, -0.60, 0], hue, 0.85, 2.5);
+  }
+  for (let i=0;i<64;i++){
+    const x = -1.2 + 2.4 * i / 63;
+    vdot([x, 0.56, 0], hue, 0.42, 1.5);
+  }
+  vline([-1.35, -0.60, 0], [1.35, -0.60, 0], hue, 0.30, 1.1);
+  vline([-1.35,  0.56, 0], [1.35,  0.56, 0], hue, 0.30, 1.1);
+  for (let i=0;i<5;i++){
+    const x = -1.2 + 2.4 * i / 4;
+    vline([x, -0.58, 0], [x, 0.54, 0], hue, 0.16, 1);
+  }
+  for (let k=0;k<3;k++){
+    vdot([-0.26 + k * 0.26, -0.02, 0], hue, 0.55, 2.3);
+  }
+}
+
+// 素数筛 + 间距为 2 的孪生对
+function sSieve(t, hue){
+  const primes = [2,3,5,7,11,13,17,19,23,29,31,37,41,43,47];
+  const maxP = 47;
+  const X = function(p){ return -1.35 + 2.7 * p / maxP; };
+  vline([-1.4, 0, 0], [1.4, 0, 0], hue, 0.32, 1.1);
+  for (let i=0;i<primes.length;i++) vdot([X(primes[i]), 0, 0], hue, 0.88, 2.6);
+  const twins = [[3,5],[5,7],[11,13],[17,19],[29,31],[41,43]];
+  for (let i=0;i<twins.length;i++){
+    const x1 = X(twins[i][0]), x2 = X(twins[i][1]);
+    vline([x1, 0, 0], [x1, 0.30, 0], hue, 0.48, 1.1);
+    vline([x2, 0, 0], [x2, 0.30, 0], hue, 0.48, 1.1);
+    vline([x1, 0.30, 0], [x2, 0.30, 0], hue, 1.0, 1.9);
+  }
+}
+
+const SHAPE_FNS = {
+  parab:   sParab,
+  pyth:    sPyth,
+  stair:   sStair,
+  circle:  sCircle,
+  planes:  sPlanes,
+  spiral:  sSpiral,
+  sphere:  sSphere,
+  tree:    sTree,
+  tangent: sTangent,
+  bell:    sBell,
+  helix:   sHelix,
+  contour: sContour,
+  field:   sField,
+  zeta:    sZeta,
+  torus:   sTorus,
+  wave:    sWave,
+  ellipse: sEllipse,
+  hyperbola: sHyperbola,
+  scatter: sScatter,
+  parabola2d: sParabola2d,
+  pyramid: sPyramid,
+  absval: sAbsVal,
+  growth: sGrowth,
+  logscale: sLogScale,
+  histogram: sHistogram,
+  byparts: sByParts,
+  monotone: sMonotone,
+  pairs: sPairs,
+  layers: sLayers,
+  sieve: sSieve
+};
+
+const SHAPE_LABEL = {
+  parab:'z = x² − y²', pyth:'a² + b² = c²', stair:'sequence',
+  circle:'n → ∞', planes:'2 planes', spiral:'r = e^(aθ)',
+  sphere:'4/3 πr³', tree:'branching', tangent:'f ′(x)',
+  bell:'exp(−r²)', helix:'e^(ix)', contour:'∮ f dz',
+  field:'vector field', zeta:'Re(s) = 1/2', torus:'χ = 0',
+  wave:'A sin(ωx + φ)', ellipse:'x²/a² + y²/b² = 1',
+  hyperbola:'x²/a² − y²/b² = 1', scatter:'y = kx + b',
+  parabola2d:'y² = 2px', pyramid:'V = (1/3)Sh', absval:'|x−a| + |x−b|',
+  growth:'a^(m+n)', logscale:'log_a b = ln b / ln a', histogram:'E(X) · D(X)',
+  byparts:'∫u dv = uv − ∫v du', monotone:'f₁ ≤ f₂ ≤ f₃ …', pairs:'p + q = 2n',
+  layers:'ℵ₀ < ? < 2^ℵ₀', sieve:'p, p+2'
+};
+
+function drawViz(dt, hue){
+  if (!viz || !VW) return;
+  vRotY += dt * V_SPIN;
+  vctx.clearRect(0, 0, VW, VH);
+
+  // 视口底光，给线框一点对比（尽量淡，避免形成方块感）
+  const gg = vctx.createRadialGradient(VCX, VCY, 0, VCX, VCY, Math.min(VW, VH) * 0.58);
+  gg.addColorStop(0,    'rgba(3,10,22,0.20)');
+  gg.addColorStop(0.62, 'rgba(3,10,22,0.08)');
+  gg.addColorStop(1,    'rgba(3,10,22,0)');
+  vctx.fillStyle = gg;
+  vctx.fillRect(0, 0, VW, VH);
+
+  vctx.globalCompositeOperation = 'lighter';
+  vctx.lineCap = 'round';
+  const fn = SHAPE_FNS[curShape] || sParab;
+  fn(tNow, Math.round(hue));
+  vctx.globalCompositeOperation = 'source-over';
+  const lab = SHAPE_LABEL[curShape] || '';
+  if (vizLab && vizLab.textContent !== lab) vizLab.textContent = lab;
+}
+
+/* ─────────────── 主循环 ─────────────── */
+let last = performance.now();
+
+/* ── 海洋渲染 ── */
+function renderSea(dt, time){
+  const e      = smoothstep(depth);
+  const cam    = depth * (WORLD_H - H);
+  const lightR = lerp(Math.min(W,H) * 0.46, Math.min(W,H) * 0.21, e);
+
+  const bgR = Math.round(lerp(8, 0, e));
+  const bgG = Math.round(lerp(28, 1, e));
+  const bgB = Math.round(lerp(56, 5, e));
+  sctx.fillStyle = 'rgb('+bgR+','+bgG+','+bgB+')';
+  sctx.fillRect(0, 0, W, H);
+
+  const vg = sctx.createLinearGradient(0, 0, 0, H);
+  vg.addColorStop(0, 'rgba(120,210,255,'+(0.055*(1-e)).toFixed(3)+')');
+  vg.addColorStop(0.55, 'rgba(80,170,255,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,'+(0.35*e).toFixed(3)+')');
+  sctx.fillStyle = vg;
+  sctx.fillRect(0, 0, W, H);
+
+  if (depth < 0.42){
+    const fade = 1 - smoothstep(depth / 0.42);
+    sctx.save();
+    sctx.globalCompositeOperation = 'lighter';
+    for (let i=0;i<5;i++){
+      const bx = W * (0.12 + i * 0.19) + Math.sin(time * 0.16 + i * 1.7) * 34;
+      const hw = W * 0.045;
+      const g = sctx.createLinearGradient(0, 0, 0, H * 0.92);
+      g.addColorStop(0, 'rgba(110,205,255,' + (0.05 * fade).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(110,205,255,0)');
+      sctx.fillStyle = g;
+      sctx.beginPath();
+      sctx.moveTo(bx - hw * 0.35, 0);
+      sctx.lineTo(bx + hw * 0.35, 0);
+      sctx.lineTo(bx + hw * 1.5, H * 0.92);
+      sctx.lineTo(bx - hw * 1.5, H * 0.92);
+      sctx.closePath();
+      sctx.fill();
+    }
+    sctx.restore();
+  }
+
+  sctx.save();
+  sctx.globalCompositeOperation = 'lighter';
+  for (let i=0;i<N_SNOW;i++){
+    const s = snow[i];
+    const par = 0.28 + s.z * 0.95;
+    let sy = ((s.wy - cam * par) % WORLD_H + WORLD_H) % WORLD_H;
+    sy = sy - H * 0.12;
+    if (sy < -12 || sy > H + 12) continue;
+
+    const sx = (s.xf * W + Math.sin(time * 0.35 * s.spd + s.ph) * 16) % W;
+    const dist = Math.hypot(sx - lightX, sy - lightY);
+    const lit  = clamp(1 - dist / (lightR * 1.5), 0, 1);
+    const a    = s.a * (0.16 + lit * 1.7) * lerp(1.15, 0.75, e);
+
+    sctx.fillStyle = 'rgba(190,235,255,' + clamp(a, 0, 0.9).toFixed(3) + ')';
+    sctx.beginPath();
+    sctx.arc(sx < 0 ? sx + W : sx, sy, s.r, 0, TAU);
+    sctx.fill();
+  }
+  sctx.restore();
+
+  const toDraw = [];
+  for (let i=0;i<jellies.length;i++){
+    const j = jellies[i];
+    const par = 0.55 + j.z * 0.5;
+    let sy = ((j.wy - cam * par) % WORLD_H + WORLD_H) % WORLD_H;
+    sy = sy - H * 0.18;
+
+    const pad = j.size * 3.2;
+    if (sy < -pad || sy > H + pad) continue;
+
+    const sx = W * j.xf + Math.sin(time * j.wobSpd + j.wob) * j.wobAmt;
+
+    const dist  = Math.hypot(sx - lightX, sy - lightY);
+    const light = clamp(1 - dist / lightR, 0, 1);
+    const lightS = light * light;
+
+    if (!j.discovered){
+      if (lightS > 0.34){
+        j.seen += dt;
+        if (j.seen > 0.32){
+          j.discovered = true;
+          discoveredCount++;
+          countNumEl.textContent = discoveredCount;
+        }
+      } else {
+        j.seen = Math.max(0, j.seen - dt * 0.6);
+      }
+    }
+    j.glow += ((j.discovered ? 1 : 0) - j.glow) * (1 - Math.pow(0.02, dt));
+
+    toDraw.push({ j: j, sx: sx, sy: sy, light: lightS });
+  }
+
+  toDraw.sort(function(a,b){ return a.j.size - b.j.size; });
+
+  sctx.save();
+  sctx.globalCompositeOperation = 'lighter';
+  for (let i=0;i<toDraw.length;i++){
+    const d = toDraw[i];
+    drawJelly(d.j, d.sx, d.sy, time, d.light);
+  }
+  sctx.restore();
+
+  const darkness = lerp(0.34, 0.985, e);
+  mctx.clearRect(0, 0, W, H);
+  mctx.fillStyle = 'rgba(1,3,10,' + darkness.toFixed(3) + ')';
+  mctx.fillRect(0, 0, W, H);
+
+  mctx.globalCompositeOperation = 'destination-out';
+
+  const g1 = mctx.createRadialGradient(lightX, lightY, 0, lightX, lightY, lightR);
+  g1.addColorStop(0,    'rgba(0,0,0,1)');
+  g1.addColorStop(0.34, 'rgba(0,0,0,0.94)');
+  g1.addColorStop(0.66, 'rgba(0,0,0,0.62)');
+  g1.addColorStop(1,    'rgba(0,0,0,0)');
+  mctx.fillStyle = g1;
+  mctx.beginPath();
+  mctx.arc(lightX, lightY, lightR, 0, TAU);
+  mctx.fill();
+
+  const g2 = mctx.createRadialGradient(lightX, lightY, lightR * 0.85, lightX, lightY, lightR * 2.1);
+  g2.addColorStop(0, 'rgba(0,0,0,0.36)');
+  g2.addColorStop(1, 'rgba(0,0,0,0)');
+  mctx.fillStyle = g2;
+  mctx.beginPath();
+  mctx.arc(lightX, lightY, lightR * 2.1, 0, TAU);
+  mctx.fill();
+
+  mctx.globalCompositeOperation = 'source-over';
+}
+
+/* ── 天空渲染 ── */
+function renderSky(dt, a){
+  const time = tNow;
+
+  const ST = [
+    [0.00,   8, 28, 56],
+    [0.18,  17, 50,  90],
+    [0.42,  12, 34,  72],
+    [0.68,   8, 20,  48],
+    [1.00,   1,  3, 12]
+  ];
+  let cr = 10, cg = 34, cb = 66;
+  for (let i=0;i<ST.length-1;i++){
+    if (a >= ST[i][0] && a <= ST[i+1][0]){
+      const k = (a - ST[i][0]) / (ST[i+1][0] - ST[i][0]);
+      cr = lerp(ST[i][1], ST[i+1][1], k);
+      cg = lerp(ST[i][2], ST[i+1][2], k);
+      cb = lerp(ST[i][3], ST[i+1][3], k);
+      break;
+    }
+  }
+  sctx.fillStyle = 'rgb(' + Math.round(cr) + ',' + Math.round(cg) + ',' + Math.round(cb) + ')';
+  sctx.fillRect(0, 0, W, H);
+
+  // 星星（越高越多）
+  const starA = smoothstep((a - 0.40) / 0.34);
+  if (starA > 0.01){
+    sctx.save();
+    sctx.globalCompositeOperation = 'lighter';
+    for (let i=0;i<stars.length;i++){
+      const s = stars[i];
+      const tw = 0.55 + 0.45 * Math.sin(time * s.sp + s.ph);
+      const al = starA * tw * 0.95;
+      if (al <= 0.02) continue;
+      const px = s.xf * W;
+      let py = (s.yf * H * 1.15 - a * H * 0.30) % H;
+      if (py < 0) py += H;
+      sctx.fillStyle = 'rgba(224,242,255,' + al.toFixed(3) + ')';
+      sctx.beginPath();
+      sctx.arc(px, py, s.r, 0, TAU);
+      sctx.fill();
+    }
+    sctx.restore();
+  }
+
+  // 太阳 / 地平线光
+  if (a < 0.52){
+    const f  = Math.sin(clamp(a / 0.52, 0, 1) * Math.PI);
+    const sy = H * (0.74 - a * 0.55);
+    const g  = sctx.createRadialGradient(W*0.5, sy, 0, W*0.5, sy, H * 0.85);
+    g.addColorStop(0,   'rgba(255,246,218,' + (0.30 * f).toFixed(3) + ')');
+    g.addColorStop(0.4, 'rgba(220,236,255,' + (0.10 * f).toFixed(3) + ')');
+    g.addColorStop(1,   'rgba(180,220,255,0)');
+    sctx.fillStyle = g;
+    sctx.fillRect(0, 0, W, H);
+  }
+
+  // 云层（低空有，越往上越稀）
+  const cloudA = smoothstep((0.64 - a) / 0.34) * smoothstep((a - 0.05) / 0.10) * (0.58 - a * 0.22);
+  if (cloudA > 0.01){
+    sctx.save();
+    sctx.globalCompositeOperation = 'lighter';
+    for (let i=0;i<clouds.length;i++){
+      const c = clouds[i];
+      const par = 0.55 + (i % 5) * 0.11;
+      let cy = ((c.wy - a * par * 1.25) % 1 + 1) % 1;
+      cy = cy * H;
+      const cx = (c.xf * W + Math.sin(time * 0.1 * c.drift + c.ph) * 44 + W) % W;
+      const r  = c.s * (0.72 + 0.28 * Math.sin(time * 0.4 + c.ph));
+      const g  = sctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0,    'rgba(238,248,255,' + (cloudA * 0.09).toFixed(3) + ')');
+      g.addColorStop(0.55, 'rgba(214,236,255,' + (cloudA * 0.035).toFixed(3) + ')');
+      g.addColorStop(1,    'rgba(200,225,255,0)');
+      sctx.fillStyle = g;
+      sctx.beginPath();
+      sctx.arc(cx, cy, r, 0, TAU);
+      sctx.fill();
+    }
+    sctx.restore();
+  }
+
+  // 天空不需要手电遮罩
+  mctx.clearRect(0, 0, W, H);
+}
+
+function frame(now){
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  tNow += dt;
+  const time = tNow;
+
+  // 有符号纵向坐标：负 = 天空，正 = 海洋
+  let raw;
+  if (forcedDepth !== null)      raw = forcedDepth * SEA_VH * H;
+  else if (forcedAlt !== null)   raw = -forcedAlt * SKY_VH * H;
+  else                           raw = window.scrollY - SKY_VH * H;
+
+  if (forcedDepth !== null || forcedAlt !== null){
+    // 参数锁定时直接到位，不做平滑
+    rawSmooth = raw;
+  } else {
+    rawSmooth += (raw - rawSmooth) * (1 - Math.pow(0.0025, dt));
+    if (Math.abs(raw - rawSmooth) < 0.4) rawSmooth = raw;
+  }
+
+  // 光源跟随（带滞后）
+  lightX += (mouseX - lightX) * (1 - Math.pow(0.0009, dt));
+  lightY += (mouseY - lightY) * (1 - Math.pow(0.0009, dt));
+
+  const skySpan = SKY_VH * H;
+  const seaSpan = SEA_VH * H;
+
+  if (rawSmooth < 0){
+    const a = clamp(-rawSmooth / skySpan, 0, 1);
+    alt = a;
+    depth = 0;
+    if (a < 0.02){
+      // 海平面：与深海上端完全一致，打开即上一版的画面
+      renderSea(dt, time);
+      updateHUD('sea', 0);
+      updateMath('sea', 0);
+      drawViz(dt, hueAt(0));
+    } else {
+      renderSky(dt, a);
+      updateHUD('sky', a);
+      updateMath('sky', a);
+      drawViz(dt, skyHue(a));
+    }
+  } else {
+    alt = 0;
+    depth = clamp(rawSmooth / seaSpan, 0, 1);
+    renderSea(dt, time);
+    updateHUD('sea', depth);
+    updateMath('sea', depth);
+    drawViz(dt, hueAt(depth));
+  }
+
+  requestAnimationFrame(frame);
+}
+
+/* ─────────────── 启动 ─────────────── */
+window.addEventListener('resize', resize);
+resize();
+
+// 打开即停在海平面：向下下潜（主干），向上飞（非主干延伸）
+// ?d=0.42 锁定海洋深度；?s=0.50 锁定天空高度
+(function(){
+  const qp = new URLSearchParams(location.search);
+  const sd = parseFloat(qp.get('d'));
+  const sa = parseFloat(qp.get('s'));
+  const H0 = window.innerHeight;
+
+  if (isFinite(sa) && sa > 0){
+    const v = clamp(sa, 0, 1);
+    forcedAlt = v;
+    alt = v;
+    rawSmooth = -v * SKY_VH * H0;
+  } else if (isFinite(sd) && sd > 0){
+    const v = clamp(sd, 0, 1);
+    forcedDepth = v;
+    depth = v;
+    rawSmooth = v * SEA_VH * H0;
+  } else {
+    window.scrollTo(0, SKY_VH * H0);
+  }
+
+  lightX = mouseX = window.innerWidth * 0.5;
+  lightY = mouseY = window.innerHeight * 0.45;
+})();
+
+requestAnimationFrame(frame);
+
+// 键盘：End 直达海底 / Home 回到海面
+window.addEventListener('keydown', function(e){
+  if (e.key === 'End'){ forcedDepth = null; window.scrollTo({ top: document.body.scrollHeight, behavior:'smooth' }); }
+  if (e.key === 'Home'){ forcedDepth = null; window.scrollTo({ top: 0, behavior:'smooth' }); }
+});
+
+})();
+</script>
+</body>
+</html>
