@@ -2459,7 +2459,7 @@ function shapesOf(mode){ return mode === 'sky' ? SKY_SHAPES : SHAPES; }
 function indexAt(list, prog){
   let idx = 0;
   for (let i=0;i<list.length;i++){
-    if (prog >= list[i].from) idx = i;
+    if (prog >= list[i].from - 1e-6) idx = i;
   }
   return idx;
 }
@@ -2578,8 +2578,11 @@ idxInnerEl.addEventListener('click', function(ev){
   const i = Array.prototype.indexOf.call(idxItems, item);
   if (i < 0) return;
   const list = listOf(curMode);
-  if (!list[i]) return;
-  jumpTo(curMode, list[i].from);
+  const st = list[i];
+  if (!st) return;
+  // 跳到该关区间的中点，避免卡在浮点边界上差一位
+  const nxt = (i + 1 < list.length) ? list[i + 1].from : 1;
+  jumpTo(curMode, (st.from + nxt) / 2);
   idxEl.classList.remove('open');
   idxToggleEl.classList.remove('open');
 });
