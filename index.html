@@ -180,9 +180,23 @@
   }
   @media (max-width: 900px){
     #idx{display:none;}
-    #mathMain{width:92vw;top:80px;}
-    #mathBody{font-size:12.5px;line-height:1.7;max-height:58vh;}
-    #mathTitle{font-size:14px;}
+    #viz,#vizLabel{display:none;}
+    #mathMain{width:92vw;top:126px;}
+    #mathBody{font-size:12.8px;line-height:1.72;max-height:64vh;}
+    #mathTitle{font-size:15px;margin-bottom:10px;padding-left:10px;}
+    #mathHead{font-size:8px;margin-bottom:7px;gap:7px;}
+    #mathTier{padding:1px 5px;font-size:8px;}
+    #mathNo{letter-spacing:.1em;}
+    #depthbox{right:16px;top:14px;}
+    #depthnum{font-size:26px;}
+    #depthnum small{font-size:10px;margin-left:4px;}
+    #bandname{font-size:8px;margin-top:6px;letter-spacing:.16em;}
+    #pressure{font-size:8px;margin-top:3px;}
+    #gauge{right:8px;height:30vh;}
+    #countbox{left:16px;bottom:16px;font-size:10px;}
+    #countbox em{font-size:16px;}
+    #hint{bottom:4vh;font-size:8px;letter-spacing:.24em;}
+    #title h1{font-size:26px;letter-spacing:.3em;text-indent:.3em;}
   }
 
   /* 下潜提示 */
@@ -3520,6 +3534,8 @@ resize();
 
 // 打开即停在海平面：向下下潜（主干），向上飞（非主干延伸）
 // ?d=0.42 锁定海洋深度；?s=0.50 锁定天空高度
+if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
+
 (function(){
   const qp = new URLSearchParams(location.search);
   const sd = parseFloat(qp.get('d'));
@@ -3538,11 +3554,24 @@ resize();
     rawSmooth = v * SEA_VH * H0;
   } else {
     window.scrollTo(0, SKY_VH * H0);
+    setTimeout(function(){ window.scrollTo(0, SKY_VH * window.innerHeight); }, 60);
   }
 
   lightX = mouseX = window.innerWidth * 0.5;
   lightY = mouseY = window.innerHeight * 0.45;
 })();
+
+// 移动端 / 刷新：等布局稳定后再校正一次海平面位置
+window.addEventListener('load', function(){
+  if (forcedDepth === null && forcedAlt === null){
+    window.scrollTo(0, SKY_VH * window.innerHeight);
+  }
+});
+window.addEventListener('resize', function(){
+  if (forcedDepth === null && forcedAlt === null){
+    window.scrollTo(0, SKY_VH * window.innerHeight);
+  }
+});
 
 requestAnimationFrame(frame);
 
