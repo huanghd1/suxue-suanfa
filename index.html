@@ -3669,17 +3669,13 @@ if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
   lightY = mouseY = window.innerHeight * 0.45;
 })();
 
-// 移动端 / 刷新：等布局稳定后再校正一次海平面位置
+// 移动端 / 刷新：等布局稳定后再校正一次海平面位置（只在加载时做一次，
+// 不能在 resize 里做——否则会覆盖目录跳转和用户滚动）
 window.addEventListener('load', function(){
   if (forcedDepth === null && forcedAlt === null){
     window.scrollTo(0, SKY_VH * window.innerHeight);
   }
-});
-window.addEventListener('resize', function(){
-  if (forcedDepth === null && forcedAlt === null){
-    window.scrollTo(0, SKY_VH * window.innerHeight);
-  }
-});
+}, { once: true });
 
 requestAnimationFrame(frame);
 
