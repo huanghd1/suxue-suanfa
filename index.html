@@ -88,6 +88,34 @@
   }
 
   /* 左侧：知识点目录（向下排开） */
+  #idxToggle{
+    position:fixed;left:14px;top:14px;z-index:23;
+    display:none;align-items:center;gap:7px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:#c2f2ff;
+    background:rgba(2,8,20,.46);
+    border:1px solid rgba(140,234,255,.30);
+    border-radius:20px;
+    padding:7px 13px 7px 11px;
+    cursor:pointer;
+    -webkit-backdrop-filter:blur(7px);
+            backdrop-filter:blur(7px);
+    text-shadow:0 0 12px rgba(2,10,24,.95);
+    -webkit-tap-highlight-color:transparent;
+    outline:none;
+  }
+  #idxToggle:active{ background:rgba(10,30,56,.62); }
+  #idxToggle .dot{
+    width:5px;height:5px;border-radius:50%;
+    background:#8ceaff;box-shadow:0 0 9px 2px rgba(120,230,255,.8);
+  }
+  #idxToggleCount{ opacity:.6;letter-spacing:.1em;font-size:9px; }
+  #idxToggle .caret{
+    font-size:8px;opacity:.7;transition:transform .22s ease;
+  }
+  #idxToggle.open .caret{ transform:rotate(180deg); }
+
   #idx{
     position:fixed;left:26px;top:90px;z-index:21;pointer-events:auto;
     width:204px;max-height:min(68vh,620px);overflow:hidden;
@@ -179,10 +207,49 @@
     to{opacity:1;transform:none;}
   }
   @media (max-width: 900px){
-    #idx{display:none;}
-    #viz,#vizLabel{display:none;}
+    /* 目录：默认收起，点顶部按钮展开 */
+    #idxToggle{ display:flex; }
+    #idx{
+      display:block;
+      left:14px;top:60px;
+      width:198px;
+      max-height:min(62vh,440px);
+      overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
+      background:rgba(2,8,20,.64);
+      -webkit-backdrop-filter:blur(9px);
+              backdrop-filter:blur(9px);
+      border:1px solid rgba(140,234,255,.16);
+      border-radius:8px;
+      padding:9px 10px;
+      box-sizing:border-box;
+      z-index:24;
+      opacity:0;
+      transform:translateY(-6px);
+      pointer-events:none;
+      transition:opacity .22s ease, transform .22s ease;
+    }
+    #idx.open{ opacity:1; transform:none; pointer-events:auto; }
+
+    /* 3D 图解移到右下角 */
+    #viz{
+      display:block;
+      left:auto;right:8px;top:auto;bottom:88px;
+      width:min(40vw,160px);height:min(40vw,160px);
+      transform:none;
+      opacity:.92;
+    }
+    #vizLabel{
+      display:block;
+      left:auto;right:8px;top:auto;bottom:70px;
+      width:min(40vw,160px);
+      font-size:7px;letter-spacing:.1em;
+      text-align:center;
+      opacity:.42;
+    }
+
     #mathMain{width:92vw;top:126px;}
-    #mathBody{font-size:12.8px;line-height:1.72;max-height:64vh;}
+    #mathBody{font-size:12.8px;line-height:1.72;max-height:58vh;}
     #mathTitle{font-size:15px;margin-bottom:10px;padding-left:10px;}
     #mathHead{font-size:8px;margin-bottom:7px;gap:7px;}
     #mathTier{padding:1px 5px;font-size:8px;}
@@ -192,7 +259,7 @@
     #depthnum small{font-size:10px;margin-left:4px;}
     #bandname{font-size:8px;margin-top:6px;letter-spacing:.16em;}
     #pressure{font-size:8px;margin-top:3px;}
-    #gauge{right:8px;height:30vh;}
+    #gauge{right:8px;height:28vh;}
     #countbox{left:16px;bottom:16px;font-size:10px;}
     #countbox em{font-size:16px;}
     #hint{bottom:4vh;font-size:8px;letter-spacing:.24em;}
@@ -260,6 +327,13 @@
 <div class="hud" id="countbox">
   <em id="countnum">0</em><span>/ <span id="counttotal">0</span> SPECIMENS</span>
 </div>
+
+<button id="idxToggle" type="button" aria-label="展开知识点目录">
+  <span class="dot"></span>
+  <span id="idxToggleText">目录</span>
+  <span id="idxToggleCount">01 / 58</span>
+  <span class="caret">▾</span>
+</button>
 
 <div id="idx"><div id="idxInner"></div></div>
 
@@ -2408,6 +2482,12 @@ function buildIndex(mode){
 // 让当前知识点滚动到左栏中部
 function scrollIndexTo(i, count){
   const listH = idxEl.clientHeight || 420;
+  if (window.innerWidth <= 900){
+    const target = i * IDX_ITEM_H - listH / 2 + IDX_ITEM_H / 2;
+    const max = Math.max(0, count * IDX_ITEM_H - listH);
+    idxEl.scrollTop = clamp(target, 0, max);
+    return;
+  }
   let y = i * IDX_ITEM_H + IDX_ITEM_H / 2 - listH / 2;
   const maxShift = Math.max(0, count * IDX_ITEM_H - listH);
   y = clamp(y, 0, maxShift);
@@ -2439,6 +2519,7 @@ function updateMath(mode, prog){
   mathTierEl.innerHTML = st.tier + '<span class="star">' +
     '★'.repeat(st.star) + '</span>';
   mathNoEl.textContent = String(i+1).padStart(2,'0') + ' / ' + list.length;
+  if (idxToggleCountEl) idxToggleCountEl.textContent = String(i+1).padStart(2,'0') + ' / ' + list.length;
   mathTitleEl.textContent = st.title;
 
   let html = '';
@@ -2469,6 +2550,28 @@ function jumpTo(mode, prog){
   window.scrollTo({ top: y, behavior: 'smooth' });
 }
 
+/* ── 手机端：顶部按钮展开知识点目录 ── */
+const idxToggleEl     = document.getElementById('idxToggle');
+const idxToggleCountEl = document.getElementById('idxToggleCount');
+
+idxToggleEl.addEventListener('click', function(ev){
+  ev.stopPropagation();
+  const open = idxEl.classList.toggle('open');
+  idxToggleEl.classList.toggle('open', open);
+  if (open){
+    idxInnerEl.style.transform = 'translateY(0px)';
+    idxShift = -1;
+    scrollIndexTo(curMath < 0 ? 0 : curMath, listOf(curMode).length);
+  }
+});
+
+document.addEventListener('click', function(ev){
+  if (!idxEl.classList.contains('open')) return;
+  if (idxEl.contains(ev.target) || idxToggleEl.contains(ev.target)) return;
+  idxEl.classList.remove('open');
+  idxToggleEl.classList.remove('open');
+});
+
 idxInnerEl.addEventListener('click', function(ev){
   const item = ev.target && ev.target.closest ? ev.target.closest('.idxItem') : null;
   if (!item) return;
@@ -2477,6 +2580,8 @@ idxInnerEl.addEventListener('click', function(ev){
   const list = listOf(curMode);
   if (!list[i]) return;
   jumpTo(curMode, list[i].from);
+  idxEl.classList.remove('open');
+  idxToggleEl.classList.remove('open');
 });
 
 document.getElementById('gauge').addEventListener('click', function(ev){
